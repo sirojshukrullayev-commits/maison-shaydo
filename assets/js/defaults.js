@@ -362,6 +362,8 @@ export const DEFAULT_SETTINGS = {
   "scallop": true,
   "spread": 100,
   "train": 40,
+  "size": 25,
+  "width": 45,
   "mannequin": "linen",
   "finial": "silver",
   "sparkle": false,

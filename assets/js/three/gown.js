@@ -17,7 +17,7 @@ const VH = 0.72; // etak polga tekkan joy (v)
 const TILE = 1.0; // naqshning dunyo birligidagi o'lchami (4x4 gul)
 const HEM_FLARE = 0.06; // etak polga tegishda biroz ochiladi
 // Maneken: ozg'in va bo'yni uzun
-const SLIM = 0.82; // tana kengligi koeffitsienti
+const SLIM = 0.78; // tana kengligi koeffitsienti (ozg'in)
 const NECK_Y = 0.63; // bo'yin shu balandlikdan boshlanadi
 const NECK_K = 2.0; // bo'yin necha barobar uzunroq
 const LIFT = (0.752 - NECK_Y) * (NECK_K - 1); // bosh qismi qancha ko'tariladi
@@ -29,7 +29,8 @@ const LOBE = 0.085; // dantel chetidagi har bir fistonchaning uzunligi
 const NB = 1600; // chet lentasining bo'laklari
 
 const SIL = {
-  aline: { bell: 0.28, mermaid: 0, rAmul: 1.12, waist: 0.3, fold: 0.03 },
+  // A harfiga o'xshash: belidan etagigacha to'g'ri chiziq bo'ylab kengayadi
+  aline: { bell: 0, mermaid: 0, rAmul: 1, waist: 0.36, fold: 0.02 },
   ball: { bell: 0.92, mermaid: 0, rAmul: 1.32, waist: 0.3, fold: 0.036 },
   mermaid: { bell: 0, mermaid: 1, rAmul: 1.04, waist: 0.3, fold: 0.022 },
   empire: { bell: 0.15, mermaid: 0, rAmul: 1.05, waist: 0.42, fold: 0.03 },
@@ -593,6 +594,7 @@ export function createGown(container, opts = {}) {
   // ----- Matolar -----
   let texs = [];
   function applyMaterials() {
+    matSig = MAT_KEYS.map((k) => C[k]).join('|');
     texs.forEach((t) => t.dispose());
     texs = [];
     const mk = (cv, srgb = true) => {
@@ -678,7 +680,8 @@ export function createGown(container, opts = {}) {
     const floorPx = lay.baselinePx + lay.capPx * 0.02;
     // Ko'ylak baland va nafis: umumiy bo'yi harf balandligidan ancha katta
     // Bo'yi: harf balandligidan ancha katta, lekin etak "A" joyiga sig'ib, A shakli saqlanadi
-    const totalPx = Math.min(lay.capPx * (W < 700 ? 5 : 2.75), lay.letterW * 1.85);
+    // O'lchami admin paneldan: 0% — harf balandligicha, 100% — ~2.8 barobar
+    const totalPx = Math.min(lay.capPx * (1.1 + 1.7 * (C.size / 100)), lay.letterW * 2.4);
     let skirtPx = totalPx * ((0.3 - FLOOR) / (TOPY - FLOOR));
     const solveFor = (spx) => {
       let tx = 0; let ty = -0.4; let d = (1.3 * H) / (spx * 2 * tan);
@@ -704,10 +707,11 @@ export function createGown(container, opts = {}) {
     // Etak faqat "A" harfi uchun ajratilgan joyda qoladi — qo'shni harflarga tarqalmaydi
     const lh = floorHit(lay.aPx - lay.letterW / 2, floorPx); const rh = floorHit(lay.aPx + lay.letterW / 2, floorPx);
     const hw = lh && rh ? (rh.x - lh.x) / 2 : 0.6;
-    L.rA = Math.min(0.9, Math.max(0.25, hw * 0.84));
-    L.aX = Math.max(L.rA * (1 + HEM_FLARE) + 0.01, hw - 0.07);
-    L.bF = hw * 1.15;
-    L.bB = hw * 0.85;
+    // Etak kengligi admin paneldan (A harfi kengligining 55–95%)
+    L.rA = Math.min(0.95, Math.max(0.22, hw * (0.55 + 0.4 * (C.width / 100))));
+    L.aX = Math.max(L.rA * (1 + HEM_FLARE) + 0.01, Math.min(hw - 0.04, L.rA * 1.2));
+    L.bF = L.rA * 1.45;
+    L.bB = L.rA * 1.1;
   }
 
   function setLayout(l) {
@@ -722,9 +726,13 @@ export function createGown(container, opts = {}) {
 
   function rebuild() { S = SIL[C.silhouette] || SIL.aline; updateDress(); updateParts(); needs = true; }
 
+  const MAT_KEYS = ['fabric', 'color', 'lace', 'trim', 'finial', 'mannequin', 'sparkle', 'scallop'];
+  let matSig = '';
   function setConfig(c) {
     C = normalizeGown(c);
-    applyMaterials();
+    const sig = MAT_KEYS.map((k) => C[k]).join('|');
+    if (sig !== matSig) applyMaterials();
+    solve();
     rebuild();
   }
 

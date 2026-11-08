@@ -10,6 +10,8 @@ export const GOWN_DEFAULTS = {
   scallop: true,
   spread: 100,
   train: 40,
+  size: 25,
+  width: 45,
   mannequin: 'linen',
   finial: 'silver',
   sparkle: false,
@@ -34,6 +36,9 @@ export function normalizeGown(c) {
   o.lace = hex(o.lace, GOWN_DEFAULTS.lace);
   o.spread = Math.max(0, Math.min(100, Number(o.spread) || 0));
   o.train = Math.max(0, Math.min(100, Number.isFinite(+o.train) ? +o.train : GOWN_DEFAULTS.train));
+  const pct = (v, d) => Math.max(0, Math.min(100, Number.isFinite(+v) && v !== '' && v !== null ? +v : d));
+  o.size = pct(o.size, GOWN_DEFAULTS.size);
+  o.width = pct(o.width, GOWN_DEFAULTS.width);
   o.scallop = !!o.scallop; o.sparkle = !!o.sparkle; o.motion = o.motion !== false;
   return o;
 }

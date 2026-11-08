@@ -246,7 +246,7 @@ body { animation: pageIn 0.7s var(--ease) both; }
   font-family: var(--font-h); font-weight: 400; font-size: clamp(92px, 20vw, 340px); line-height: 0.82; letter-spacing: 0.01em; white-space: nowrap;
 }
 .hero-baseline { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
-.hero-word .ch.is-dress-letter { opacity: 0 !important; margin: 0 0.16em; }
+.hero-word .ch.is-dress-letter { opacity: 0 !important; margin: 0 0.02em; }
 .hero-word.is-measure { visibility: hidden; }
 .hero-word.is-measure .ch, .hero-word.is-measure .hero-word-inner { transform: none !important; filter: none !important; transition: none !important; animation: none !important; }
 .hero-word-inner { display: inline-block; transform: translate3d(var(--wx, 0px), var(--wy, 0px), 0); transition: transform 0.9s var(--ease); filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.26)); }
@@ -649,7 +649,7 @@ html.lb-open, html.modal-open { overflow: hidden; }
   :root { --header-h: 68px; }
   .brand { font-size: 21px; }
   .hero-word { font-size: 24vw; top: 56%; }
-  .hero-word .ch.is-dress-letter { margin: 0 0.36em; }
+  .hero-word .ch.is-dress-letter { margin: 0 0.04em; }
   .hero-intro { max-width: 52%; }
   .hero-intro h1 { font-size: 22px; margin-top: 8px; }
   .hero-cta { --bh: 40px; padding: 0 14px; font-size: 10px; letter-spacing: 0.12em; }
