@@ -296,7 +296,7 @@ body { animation: pageIn 0.7s var(--ease) both; }
 .hero-stat + .hero-stat { border-left: 1px solid rgba(var(--c-hero-text-rgb), 0.18); }
 .hero-stat .ico { width: 40px; height: 40px; padding: 10px; border-radius: 50%; border: 1px solid rgba(var(--c-hero-text-rgb), 0.35); }
 .hero-stat b { display: block; font-family: var(--font-h); font-weight: 400; font-size: 26px; line-height: 1.1; }
-.hero-stat span { display: block; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.75; }
+.hero-stat div > span { display: block; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.75; }
 .hero-scroll { position: absolute; z-index: 1; left: 50%; bottom: calc(clamp(14px, 3vw, 30px) + 96px); transform: translateX(-50%); width: 1px; height: 46px; background: rgba(var(--c-hero-text-rgb), 0.25); overflow: hidden; }
 .hero-scroll::after { content: ''; position: absolute; left: 0; top: -50%; width: 1px; height: 50%; background: var(--c-hero-text); animation: drip 2s var(--ease-in-out) infinite; }
 @keyframes drip { to { top: 110%; } }
@@ -398,9 +398,10 @@ body { animation: pageIn 0.7s var(--ease) both; }
 .footer-brand p { max-width: 360px; opacity: 0.75; }
 .footer-col { display: flex; flex-direction: column; gap: 10px; }
 .footer-col h4 { font-family: var(--font-b); font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.6; margin-bottom: 8px; }
-.footer-col a, .footer-col span { display: inline-flex; align-items: center; gap: 10px; opacity: 0.85; transition: opacity 0.3s, transform 0.4s var(--ease); width: fit-content; }
-.footer-col a:hover { opacity: 1; transform: translateX(4px); }
-.footer-col .ico { opacity: 0.7; }
+/* Faqat qatorlarning o'ziga (ichidagi ikonkaga emas) — aks holda iPhone Safari'da ikonka butun qatorni egallab oladi */
+.footer-col > a, .footer-col > span { display: inline-flex; align-items: center; gap: 10px; opacity: 0.85; transition: opacity 0.3s, transform 0.4s var(--ease); width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
+.footer-col > a:hover { opacity: 1; transform: translateX(4px); }
+.footer-col .ico { opacity: 0.7; width: 1.15em; height: 1.15em; flex: none; }
 .socials { display: flex; gap: 10px; margin-top: 20px; }
 .socials a { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(127, 127, 127, 0.4); transition: background-color 0.35s, color 0.35s, transform 0.4s var(--ease); }
 .socials a:hover { background: var(--c-accent); color: var(--c-on-accent); border-color: transparent; transform: translateY(-3px); }
