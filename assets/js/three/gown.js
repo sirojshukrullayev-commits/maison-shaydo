@@ -1,123 +1,242 @@
-// Bosh sahifa uchun uzun ko'ylak: "A" harfi o'rnida turadi, etagi so'zning birinchi va oxirgi harfi ostigacha yoyiladi.
-// Bir nechta ko'ylak turi bor, ular silliq o'zgarib (morph) almashadi.
+// Bosh sahifadagi realistik 3D ko'ylak.
+// Ko'ylak so'zdagi "A" harfi o'rnida turadi, etagi so'zning birinchi va oxirgi harfi ostigacha tekis yoyiladi.
+// Ko'rinishi admin paneldagi "3D ko'ylak" bo'limidan sozlanadi (gown-config.js).
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   TORSO_SAMPLES, torsoR, bodyScale, deformBody, webglAvailable, fabricCanvas, weaveCanvas, radialCanvas,
   seeded, hex, MANNEQUIN_COLORS,
 } from './mannequin.js';
+import { normalizeGown } from '../gown-config.js';
 
 export { webglAvailable };
 
-export const GOWN_STYLES = [
-  { id: 'gown', name: { uz: 'Bal libosi', ru: 'Бальное платье', en: 'Ball gown' } },
-  { id: 'national', name: { uz: 'Milliy atlas', ru: 'Национальный атлас', en: 'National atlas' } },
-  { id: 'mermaid', name: { uz: 'Suv parisi', ru: 'Русалка', en: 'Mermaid' } },
-  { id: 'empire', name: { uz: 'Empir', ru: 'Ампир', en: 'Empire' } },
-  { id: 'oneshoulder', name: { uz: 'Bir yelkali', ru: 'На одно плечо', en: 'One-shoulder' } },
-  { id: 'pleated', name: { uz: 'Plisse', ru: 'Плиссе', en: 'Pleated' } },
-];
-
-const FABRIC_TO_STYLE = { silk: 'gown', atlas: 'national', velvet: 'mermaid', linen: 'pleated', chiffon: 'empire' };
-export function styleForFabric(f) { return FABRIC_TO_STYLE[f] || 'gown'; }
-
-// Har bir turning shakl parametrlari (oraliq qiymatlar silliq interpolyatsiya qilinadi)
-const BASE = {
-  top: 0.47, sweet: 0.03, shoulder: 0, collar: 0, waist: 0.3, rAmul: 1, bell: 0, mermaid: 0,
-  billow: 0.12, waves: 0.022, overlay: 0, neckTrim: 1, belt: 1, hemTrim: 0, beads: 0,
-};
-const PARAMS = {
-  gown: { ...BASE, bell: 0.85, rAmul: 1.12, beads: 1, hemTrim: 0 },
-  national: { ...BASE, sweet: 0, collar: 1, rAmul: 1.0, hemTrim: 1, beads: 1, billow: 0.1 },
-  mermaid: { ...BASE, sweet: 0.045, mermaid: 1, rAmul: 1.05, belt: 0, neckTrim: 0, billow: 0.14, waves: 0.028 },
-  empire: { ...BASE, top: 0.5, sweet: 0.02, waist: 0.42, rAmul: 1.0, overlay: 1, belt: 1, billow: 0.13 },
-  oneshoulder: { ...BASE, sweet: 0, shoulder: 0.15, rAmul: 1.0, belt: 1, neckTrim: 1, billow: 0.12 },
-  pleated: { ...BASE, top: 0.49, sweet: 0.02, rAmul: 1.06, belt: 1, hemTrim: 1, billow: 0.1, waves: 0.016 },
-};
-const FOLDS = {
-  gown: { n: 10, amp: 0.024, pleat: false },
-  national: { n: 8, amp: 0.012, pleat: false },
-  mermaid: { n: 12, amp: 0.02, pleat: false },
-  empire: { n: 14, amp: 0.018, pleat: false },
-  oneshoulder: { n: 9, amp: 0.02, pleat: false },
-  pleated: { n: 64, amp: 0.009, pleat: true },
-};
-
-const V_WAIST = 0.2;
-const V_HEM = 0.8;
 const FLOOR = -1;
+const VW = 0.16; // bel chizig'i (v)
+const VH = 0.72; // etak polga tekkan joy (v)
+const TILE = 1.0; // naqshning dunyo birligidagi o'lchami (4x4 gul)
+const HEM_FLARE = 0.06; // etak polga tegishda biroz ochiladi
+// Maneken: ozg'in va bo'yni uzun
+const SLIM = 0.82; // tana kengligi koeffitsienti
+const NECK_Y = 0.63; // bo'yin shu balandlikdan boshlanadi
+const NECK_K = 2.0; // bo'yin necha barobar uzunroq
+const LIFT = (0.752 - NECK_Y) * (NECK_K - 1); // bosh qismi qancha ko'tariladi
+const TOPY = 0.87 + LIFT; // eng yuqori nuqta (qopqoq sharchasi)
+const unNeck = (y) => (y > NECK_Y ? NECK_Y + (y - NECK_Y) / NECK_K : y);
+const bodyR = (y) => torsoR(unNeck(y)) * SLIM;
+const bScale = (y) => bodyScale(unNeck(y));
+const LOBE = 0.085; // dantel chetidagi har bir fistonchaning uzunligi
+const NB = 1600; // chet lentasining bo'laklari
 
-function lerp(a, b, t) { return a + (b - a) * t; }
-function mixParams(a, b, t) { const o = {}; for (const k in a) o[k] = lerp(a[k], b[k], t); return o; }
-const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const SIL = {
+  aline: { bell: 0.28, mermaid: 0, rAmul: 1.12, waist: 0.3, fold: 0.03 },
+  ball: { bell: 0.92, mermaid: 0, rAmul: 1.32, waist: 0.3, fold: 0.036 },
+  mermaid: { bell: 0, mermaid: 1, rAmul: 1.04, waist: 0.3, fold: 0.022 },
+  empire: { bell: 0.15, mermaid: 0, rAmul: 1.05, waist: 0.42, fold: 0.03 },
+};
+
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const lerp = (a, b, t) => a + (b - a) * t;
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
-function foldVal(th, s, f) {
-  if (f.pleat) return f.amp * Math.pow(s, 0.6) * (Math.abs(Math.sin(th * f.n * 0.5)) * 2 - 1);
-  return f.amp * Math.pow(s, 1.3) * (0.7 * Math.sin(th * f.n + 0.6) + 0.3 * Math.sin(th * (f.n * 0.5 + 1) + 1.7));
+// ---------- Dantel naqshi (choksiz takrorlanadigan) ----------
+function laceMotifs() {
+  const r = seeded(31);
+  const N = 4;
+  const out = [];
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      out.push({
+        x: (i + 0.5 + (r() - 0.5) * 0.5) / N, y: (j + 0.5 + (r() - 0.5) * 0.5) / N,
+        s: 0.85 + r() * 0.4, rot: r() * Math.PI * 2, leaves: 3 + Math.floor(r() * 3),
+        la: Array.from({ length: 6 }, () => r() * Math.PI * 2), curl: r() < 0.5 ? 1 : -1, vr: r(),
+      });
+    }
+  }
+  return out;
+}
+const MOTIFS = laceMotifs();
+
+function drawLace(g, S, st) {
+  // To'r (tyul)
+  if (st.net) {
+    g.strokeStyle = st.net; g.lineWidth = st.netW || 1;
+    const step = 11;
+    g.beginPath();
+    for (let y = 0; y <= S; y += step * 0.866) {
+      const off = Math.round(y / (step * 0.866)) % 2 ? step / 2 : 0;
+      for (let x = -step; x <= S + step; x += step) {
+        g.moveTo(x + off, y); g.lineTo(x + off + step / 2, y + step * 0.866);
+        g.moveTo(x + off, y); g.lineTo(x + off - step / 2, y + step * 0.866);
+      }
+    }
+    g.stroke();
+  }
+  const leaf = (len, wid) => {
+    g.beginPath(); g.moveTo(0, 0);
+    g.quadraticCurveTo(len * 0.5, -wid, len, 0); g.quadraticCurveTo(len * 0.5, wid, 0, 0); g.closePath();
+  };
+  const unit = S / 4;
+  for (const m of MOTIFS) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const cx = (m.x + dx) * S; const cy = (m.y + dy) * S;
+        if (cx < -unit || cx > S + unit || cy < -unit || cy > S + unit) continue;
+        const sc = m.s * unit / 100;
+        g.save(); g.translate(cx, cy); g.rotate(m.rot); g.scale(sc, sc);
+        g.lineCap = 'round'; g.lineJoin = 'round';
+        // Novdalar (spiral va to'lqinli)
+        g.strokeStyle = st.cord; g.lineWidth = st.cordW || 3.2;
+        for (let k = 0; k < 3; k++) {
+          const a = m.la[k];
+          g.beginPath(); g.moveTo(Math.cos(a) * 14, Math.sin(a) * 14);
+          g.bezierCurveTo(Math.cos(a) * 46 + 18 * m.curl, Math.sin(a) * 46 - 14, Math.cos(a + 0.6) * 70, Math.sin(a + 0.6) * 70, Math.cos(a + 0.9 * m.curl) * 82, Math.sin(a + 0.9 * m.curl) * 82);
+          g.stroke();
+          // Gajak
+          const ex = Math.cos(a + 0.9 * m.curl) * 82; const ey = Math.sin(a + 0.9 * m.curl) * 82;
+          g.beginPath(); g.arc(ex + 6 * m.curl, ey, 7, 0, Math.PI * 1.6 * m.curl, m.curl < 0); g.stroke();
+          // Mayda nuqtalar (pikot)
+          if (st.fill) { g.fillStyle = st.fill; for (let p = 1; p <= 3; p++) { g.beginPath(); g.arc(Math.cos(a) * (24 + p * 15) + 10 * m.curl, Math.sin(a) * (24 + p * 15) - 6, 2.4, 0, Math.PI * 2); g.fill(); } }
+        }
+        // Barglar
+        for (let k = 0; k < m.leaves; k++) {
+          const a = m.la[(k + 2) % 6] + k;
+          g.save(); g.rotate(a); g.translate(30, 0);
+          leaf(34, 11);
+          if (st.fill) { g.fillStyle = st.fill; g.fill(); }
+          g.strokeStyle = st.cord; g.lineWidth = st.cordW ? st.cordW * 0.7 : 2.2; g.stroke();
+          g.beginPath(); g.moveTo(3, 0); g.lineTo(30, 0); g.lineWidth = 1.2; g.stroke();
+          g.restore();
+        }
+        // Gul
+        for (let p = 0; p < 6; p++) {
+          g.save(); g.rotate((p / 6) * Math.PI * 2); g.translate(15, 0);
+          g.beginPath(); g.ellipse(0, 0, 12, 7.5, 0, 0, Math.PI * 2);
+          if (st.fill) { g.fillStyle = st.fill; g.fill(); }
+          g.strokeStyle = st.cord; g.lineWidth = st.cordW ? st.cordW * 0.75 : 2.4; g.stroke();
+          g.restore();
+        }
+        g.beginPath(); g.arc(0, 0, 6.5, 0, Math.PI * 2);
+        g.fillStyle = st.center || st.cord; g.fill();
+        g.restore();
+      }
+    }
+  }
 }
 
-// ---------- Matolar ----------
-function canvas(size = 1024) { const c = document.createElement('canvas'); c.width = c.height = size; return c; }
+function canvas(S = 1024) { const c = document.createElement('canvas'); c.width = c.height = S; return c; }
+function rgba(hx, a) { const c = new THREE.Color(hx); return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${a})`; }
 
-function styleCanvas(id, colors) {
-  if (id === 'national') return fabricCanvas('atlas', colors);
-  if (id === 'empire') return fabricCanvas('chiffon', { heroBg: '#d98fa6', accent: '#fff2f5', primary: '#b85c7a' });
-  const S = 1024; const cv = canvas(S); const g = cv.getContext('2d'); const rnd = seeded(5);
-  if (id === 'mermaid') {
-    g.fillStyle = '#4a1225'; g.fillRect(0, 0, S, S);
-    for (let k = 0; k < 12000; k++) { g.fillStyle = `rgba(255,${180 + (k % 60)},200,${(rnd() * 0.05).toFixed(3)})`; g.fillRect(rnd() * S, rnd() * S, 2, 2); }
-    g.globalAlpha = 0.14; g.fillStyle = '#f2c46d';
-    for (let y = 48; y < S; y += 128) for (let x = (y / 128) % 2 ? 64 : 0; x < S; x += 128) {
-      g.beginPath(); g.moveTo(x, y - 16); g.lineTo(x + 11, y); g.lineTo(x, y + 16); g.lineTo(x - 11, y); g.closePath(); g.fill();
+function laceColorCanvas(base, lace) {
+  const S = 1024; const cv = canvas(S); const g = cv.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, S, S);
+  // Yengil soya — naqshga hajm beradi
+  g.save(); g.translate(2.5, 3);
+  drawLace(g, S, { cord: rgba(hex(base, -0.28), 0.35), fill: rgba(hex(base, -0.22), 0.25) });
+  g.restore();
+  drawLace(g, S, { net: rgba(lace, 0.2), cord: rgba(lace, 1), fill: rgba(lace, 0.82), center: rgba(hex(lace, -0.08), 1) });
+  return cv;
+}
+function laceMaskCanvas(netAlpha) {
+  const S = 1024; const cv = canvas(S); const g = cv.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+  drawLace(g, S, { net: `rgba(255,255,255,${netAlpha})`, netW: 1.4, cord: '#fff', fill: 'rgba(255,255,255,.95)', center: '#fff' });
+  return cv;
+}
+function laceBumpCanvas() {
+  const S = 1024; const cv = canvas(S); const g = cv.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+  if ('filter' in g) g.filter = 'blur(1.2px)';
+  drawLace(g, S, { net: 'rgba(255,255,255,.18)', cord: '#fff', fill: 'rgba(255,255,255,.62)', center: '#fff', cordW: 4 });
+  return cv;
+}
+
+// Etak chetidagi dantel lenta: ikki fistoncha, ichida gullar, chetida ip va pikotlar
+function borderCanvas(lace, mask) {
+  const Wd = 1024; const Hd = 256;
+  const cv = document.createElement('canvas'); cv.width = Wd; cv.height = Hd;
+  const g = cv.getContext('2d');
+  g.fillStyle = mask ? '#000' : lace; g.fillRect(0, 0, Wd, Hd);
+  const top = Hd * 0.42; const ry = Hd * 0.5;
+  const lobes = [256, 768];
+  const shape = () => {
+    g.beginPath(); g.rect(-4, -4, Wd + 8, top + 4);
+    lobes.forEach((cx) => { g.moveTo(cx + 256, top); g.ellipse(cx, top, 256, ry, 0, 0, Math.PI); });
+  };
+  g.save(); shape(); g.clip();
+  if (mask) {
+    g.fillStyle = 'rgba(255,255,255,.82)'; g.fillRect(0, 0, Wd, Hd);
+    // Ichki gullar (lenta bo'ylab takrorlanadi)
+    g.save(); g.scale(1, 0.5); drawLace(g, Wd, { cord: '#fff', fill: 'rgba(255,255,255,.95)', center: '#fff', cordW: 5 }); g.restore();
+  } else {
+    g.save(); g.scale(1, 0.5); drawLace(g, Wd, { cord: rgba(hex(lace, -0.12), 0.9), fill: rgba(hex(lace, 0.4), 0.95), center: rgba(hex(lace, -0.16), 1), cordW: 5 }); g.restore();
+  }
+  g.restore();
+  // Chetdagi qalin ip va mayda pikot halqalar
+  g.lineWidth = 9; g.strokeStyle = mask ? '#fff' : hex(lace, -0.05);
+  lobes.forEach((cx) => { g.beginPath(); g.ellipse(cx, top, 248, ry - 8, 0, 0.02, Math.PI - 0.02); g.stroke(); });
+  g.lineWidth = 4; g.strokeStyle = mask ? '#fff' : hex(lace, -0.1);
+  g.beginPath(); g.moveTo(0, top * 0.18); g.lineTo(Wd, top * 0.18); g.stroke();
+  g.fillStyle = mask ? '#fff' : hex(lace, -0.05);
+  lobes.forEach((cx) => {
+    for (let k = 1; k < 18; k++) {
+      const a = (k / 18) * Math.PI;
+      g.beginPath(); g.arc(cx + Math.cos(a) * 262, top + Math.sin(a) * (ry + 4), 6, 0, Math.PI * 2); g.fill();
     }
-    g.globalAlpha = 1;
-  } else if (id === 'oneshoulder') {
-    const gr = g.createLinearGradient(0, 0, S, 0);
-    for (let k = 0; k <= 12; k++) gr.addColorStop(k / 12, k % 2 ? '#0d5a4a' : '#06362d');
-    g.fillStyle = gr; g.fillRect(0, 0, S, S);
-    g.globalAlpha = 0.06; for (let y = 0; y < S; y += 3) { g.fillStyle = y % 6 ? '#ffffff' : '#000000'; g.fillRect(0, y, S, 1); }
-    g.globalAlpha = 1;
-  } else if (id === 'pleated') {
+  });
+  return cv;
+}
+
+function fabricColorCanvas(kind, base, lace) {
+  if (kind === 'lace') return laceColorCanvas(base, lace);
+  if (kind === 'atlas') return fabricCanvas('atlas', { primary: base, heroBg2: '#1d2a6b' });
+  if (kind === 'chiffon') return fabricCanvas('chiffon', { heroBg: base, accent: lace, primary: hex(base, -0.25) });
+  const S = 1024; const cv = canvas(S); const g = cv.getContext('2d'); const r = seeded(4);
+  if (kind === 'velvet') {
+    g.fillStyle = hex(base, -0.15); g.fillRect(0, 0, S, S);
+    for (let k = 0; k < 14000; k++) { g.fillStyle = `rgba(255,255,255,${(r() * 0.05).toFixed(3)})`; g.fillRect(r() * S, r() * S, 2, 2); }
+  } else if (kind === 'pleated') {
     for (let x = 0; x < S; x += 16) {
       const gr = g.createLinearGradient(x, 0, x + 16, 0);
-      gr.addColorStop(0, '#8e6a33'); gr.addColorStop(0.45, '#e8cf94'); gr.addColorStop(0.55, '#f4e2b5'); gr.addColorStop(1, '#9c7840');
+      gr.addColorStop(0, hex(base, -0.3)); gr.addColorStop(0.45, hex(base, 0.12)); gr.addColorStop(0.55, hex(base, 0.22)); gr.addColorStop(1, hex(base, -0.22));
       g.fillStyle = gr; g.fillRect(x, 0, 16, S);
     }
   } else {
-    // gown: shampan rangli ipak
-    const base = hex(colors.accent || '#b89474', 0.38); const dark = hex(colors.accent || '#b89474', -0.05);
     const gr = g.createLinearGradient(0, 0, S, 0);
-    for (let k = 0; k <= 14; k++) gr.addColorStop(k / 14, k % 2 ? base : dark);
+    const n = kind === 'satin' ? 8 : 14;
+    for (let k = 0; k <= n; k++) gr.addColorStop(k / n, k % 2 ? hex(base, kind === 'satin' ? 0.05 : 0.06) : hex(base, -0.03));
     g.fillStyle = gr; g.fillRect(0, 0, S, S);
-    g.globalAlpha = 0.05; for (let y = 0; y < S; y += 4) { g.fillStyle = y % 8 ? '#ffffff' : '#000000'; g.fillRect(0, y, S, 1); }
+    g.globalAlpha = 0.045; for (let y = 0; y < S; y += 4) { g.fillStyle = y % 8 ? '#fff' : '#000'; g.fillRect(0, y, S, 1); }
     g.globalAlpha = 1;
   }
   return cv;
 }
 
-const MATERIAL = {
-  gown: { roughness: 0.3, sheen: 1, sheenRoughness: 0.25, sheenColor: '#ffffff', clearcoat: 0.25, metalness: 0, anisotropy: 0.5, rep: [6, 3] },
-  national: { roughness: 0.36, sheen: 0.8, sheenRoughness: 0.3, sheenColor: '#ffffff', clearcoat: 0.3, metalness: 0, anisotropy: 0.3, rep: [7, 3] },
-  mermaid: { roughness: 0.88, sheen: 1, sheenRoughness: 0.42, sheenColor: '#f0b9c8', clearcoat: 0, metalness: 0, anisotropy: 0, rep: [6, 4] },
-  empire: { roughness: 0.62, sheen: 0.55, sheenRoughness: 0.45, sheenColor: '#ffd1de', clearcoat: 0, metalness: 0, anisotropy: 0, rep: [5, 3] },
-  oneshoulder: { roughness: 0.38, sheen: 0.3, sheenRoughness: 0.35, sheenColor: '#3fb193', clearcoat: 0.2, metalness: 0, anisotropy: 0.4, env: 0.55, rep: [6, 3] },
-  pleated: { roughness: 0.34, sheen: 0.6, sheenRoughness: 0.3, sheenColor: '#fff3d6', clearcoat: 0.2, metalness: 0.25, anisotropy: 0.2, rep: [6, 2] },
+const FABRIC_MAT = {
+  lace: { roughness: 0.62, sheen: 1, sheenRoughness: 0.5, clearcoat: 0, metalness: 0, anisotropy: 0, bump: 0.55 },
+  silk: { roughness: 0.32, sheen: 1, sheenRoughness: 0.25, clearcoat: 0.2, metalness: 0, anisotropy: 0.5, bump: 0 },
+  satin: { roughness: 0.26, sheen: 0.45, sheenRoughness: 0.3, clearcoat: 0.45, metalness: 0, anisotropy: 0.55, bump: 0 },
+  velvet: { roughness: 0.9, sheen: 1, sheenRoughness: 0.42, clearcoat: 0, metalness: 0, anisotropy: 0, bump: 0 },
+  atlas: { roughness: 0.36, sheen: 0.8, sheenRoughness: 0.3, clearcoat: 0.3, metalness: 0, anisotropy: 0.3, bump: 0 },
+  chiffon: { roughness: 0.62, sheen: 0.7, sheenRoughness: 0.4, clearcoat: 0, metalness: 0, anisotropy: 0, bump: 0 },
+  pleated: { roughness: 0.34, sheen: 0.6, sheenRoughness: 0.3, clearcoat: 0.2, metalness: 0.2, anisotropy: 0.2, bump: 0 },
 };
 
 // ---------- Asosiy sahna ----------
 export function createGown(container, opts = {}) {
-  const o = { tokens: {}, animate: true, quality: 'high', style: null, cycleMs: 7500, ...opts };
+  const o = { tokens: {}, animate: true, quality: 'high', config: null, tilt: 17, ...opts };
   if (!webglAvailable()) throw new Error('WebGL mavjud emas');
-  const NU = o.quality === 'low' ? 120 : 180;
-  const NV = o.quality === 'low' ? 96 : 140;
+  const NU = o.quality === 'low' ? 150 : 230;
+  const NV = o.quality === 'low' ? 110 : 170;
+  let C = normalizeGown(o.config);
+  let tokens = o.tokens || {};
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, o.quality === 'low' ? 1.5 : 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, o.quality === 'low' ? 1.6 : 1.8));
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = 1.0;
   const cnv = renderer.domElement;
   cnv.className = 'mannequin-canvas gown-canvas';
   container.appendChild(cnv);
@@ -126,425 +245,547 @@ export function createGown(container, opts = {}) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
   scene.environment = envRT.texture;
-  if ('environmentIntensity' in scene) scene.environmentIntensity = 0.6;
+  if ('environmentIntensity' in scene) scene.environmentIntensity = 0.42;
 
-  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 60);
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x333333, 0.5);
-  const key = new THREE.DirectionalLight(0xfff1e2, 2.4); key.position.set(2.5, 3.5, 4);
-  const rimL = new THREE.DirectionalLight(0xffffff, 2.2); rimL.position.set(-3.5, 2, -2);
-  const rimR = new THREE.DirectionalLight(0xffffff, 1.6); rimR.position.set(3.5, 1.5, -2.5);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(-2, 0, 4);
-  scene.add(hemi, key, rimL, rimR, fill);
+  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 80);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x2a2018, 0.5);
+  const key = new THREE.DirectionalLight(0xfff4e8, 2.3); key.position.set(2.2, 3.4, 4.2);
+  const fill = new THREE.DirectionalLight(0xf2ecff, 0.75); fill.position.set(-3, 1.2, 3.5);
+  const rimL = new THREE.DirectionalLight(0xffffff, 1.8); rimL.position.set(-3.5, 2.6, -2.5);
+  const rimR = new THREE.DirectionalLight(0xffffff, 1.3); rimR.position.set(3.4, 1.8, -2.6);
+  const top = new THREE.SpotLight(0xffffff, 18, 12, 0.5, 0.6, 1.6); top.position.set(0, 4.5, 1.5); top.target.position.set(0, -0.6, 0);
+  scene.add(hemi, key, fill, rimL, rimR, top, top.target);
 
   const root = new THREE.Group();
   scene.add(root);
   const disposables = [];
   const track = (x) => { disposables.push(x); return x; };
 
-  // Maneken tanasi (yelka va bo'yin ko'rinib turadi)
-  const torsoGeo = track(new THREE.LatheGeometry(TORSO_SAMPLES, 96));
+  // Maneken
+  const torsoGeo = track(new THREE.LatheGeometry(TORSO_SAMPLES, 120));
   deformBody(torsoGeo);
-  const weave = track(new THREE.CanvasTexture(weaveCanvas('#ffffff')));
-  weave.wrapS = weave.wrapT = THREE.RepeatWrapping; weave.repeat.set(6, 4); weave.colorSpace = THREE.SRGBColorSpace;
-  const bodyMat = track(new THREE.MeshStandardMaterial({ color: MANNEQUIN_COLORS.linen, map: weave, roughness: 0.85 }));
-  root.add(new THREE.Mesh(torsoGeo, bodyMat));
-  const woodMat = track(new THREE.MeshStandardMaterial({ color: '#3b2a1f', roughness: 0.4, metalness: 0.1 }));
-  const cap = new THREE.Mesh(track(new THREE.CylinderGeometry(0.074, 0.07, 0.03, 48)), woodMat); cap.position.y = 0.765;
-  const knob = new THREE.Mesh(track(new THREE.SphereGeometry(0.03, 32, 16)), woodMat); knob.position.y = 0.792;
-  root.add(cap, knob);
-
-  // ----- Ko'ylak yuzasi (to'r) -----
-  function makeGrid(nu, nv) {
-    const g = new THREE.BufferGeometry();
-    const pos = new Float32Array((nu + 1) * (nv + 1) * 3);
-    const uv = new Float32Array((nu + 1) * (nv + 1) * 2);
-    const idx = [];
-    for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
-      const k = j * (nu + 1) + i;
-      uv[k * 2] = i / nu; uv[k * 2 + 1] = 1 - j / nv;
-      if (i < nu && j < nv) {
-        const a = k; const b = k + 1; const c = k + nu + 1; const d = c + 1;
-        idx.push(a, c, b, b, c, d);
-      }
+  {
+    const tp = torsoGeo.attributes.position;
+    for (let i = 0; i < tp.count; i++) {
+      const y = tp.getY(i);
+      tp.setXYZ(i, tp.getX(i) * SLIM, y > NECK_Y ? NECK_Y + (y - NECK_Y) * NECK_K : y, tp.getZ(i) * SLIM);
     }
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    torsoGeo.computeVertexNormals();
+  }
+  const weave = track(new THREE.CanvasTexture(weaveCanvas('#ffffff')));
+  weave.wrapS = weave.wrapT = THREE.RepeatWrapping; weave.repeat.set(7, 5); weave.colorSpace = THREE.SRGBColorSpace;
+  const bodyMat = track(new THREE.MeshStandardMaterial({ color: MANNEQUIN_COLORS.linen, map: weave, roughness: 0.86 }));
+  root.add(new THREE.Mesh(torsoGeo, bodyMat));
+  const metalMat = track(new THREE.MeshStandardMaterial({ color: '#d7d9dc', roughness: 0.18, metalness: 1 }));
+  const capM = new THREE.Mesh(track(new THREE.CylinderGeometry(0.068, 0.062, 0.024, 48)), metalMat); capM.position.y = 0.762 + LIFT;
+  const rod = new THREE.Mesh(track(new THREE.CylinderGeometry(0.009, 0.009, 0.06, 16)), metalMat); rod.position.y = 0.8 + LIFT;
+  const ball = new THREE.Mesh(track(new THREE.SphereGeometry(0.026, 32, 20)), metalMat); ball.position.y = 0.842 + LIFT;
+  const collar = new THREE.Mesh(track(new THREE.TorusGeometry(0.02, 0.006, 10, 32)), metalMat); collar.rotation.x = Math.PI / 2; collar.position.y = 0.778 + LIFT;
+  root.add(capM, rod, ball, collar);
+
+  // To'r (grid) geometriyasi
+  function makeGrid(nu, nv, withColor = false) {
+    const g = new THREE.BufferGeometry();
+    const n = (nu + 1) * (nv + 1);
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+    if (withColor) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+    const idx = [];
+    for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+      const a = j * (nu + 1) + i; const b = a + 1; const c = a + nu + 1; const d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
     g.setIndex(idx);
     return track(g);
   }
 
-  const dressGeo = makeGrid(NU, NV);
-  const dressMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, roughness: 0.3, sheen: 1 }));
+  // Materiallar
+  const dressMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, vertexColors: true, roughness: 0.6, sheen: 1 }));
+  const sheerMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, transparent: true, depthWrite: false, roughness: 0.6, sheen: 1, sheenRoughness: 0.5 }));
+  const bandMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, transparent: true, alphaTest: 0.35, roughness: 0.62, sheen: 1, sheenRoughness: 0.5 }));
+  const trimMat = track(new THREE.MeshStandardMaterial({ color: '#d4a437', roughness: 0.22, metalness: 1, side: THREE.DoubleSide }));
+
+  // Pol ustidagi yumshoq soya (etakni "yerga" o'tqazadi)
+  const shadowTex = track(new THREE.CanvasTexture(radialCanvas('rgba(0,0,0,0.85)', 'rgba(0,0,0,0)')));
+  const shadowMat = track(new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.38 }));
+  const shadow = new THREE.Mesh(track(new THREE.PlaneGeometry(2, 2)), shadowMat);
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = FLOOR - 0.004; shadow.renderOrder = -1;
+  root.add(shadow);
+
+  const dressGeo = makeGrid(NU, NV, true);
   const dress = new THREE.Mesh(dressGeo, dressMat);
-  dress.frustumCulled = false;
-  root.add(dress);
-
-  // Shifon ustki qatlam (Empir turi uchun)
-  const NVO = Math.round(NV * (1 - V_WAIST));
-  const overGeo = makeGrid(NU, NVO);
-  const overMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, color: '#f7d6df', roughness: 0.55, sheen: 1, sheenColor: new THREE.Color('#ffe9ef'), transparent: true, opacity: 0, depthWrite: false }));
-  const over = new THREE.Mesh(overGeo, overMat);
-  over.frustumCulled = false;
-  root.add(over);
-
-  // Zarrin hoshiyalar (yoqa, kamar, etak chegarasi)
-  const trimMat = () => track(new THREE.MeshStandardMaterial({ color: '#d4a437', roughness: 0.22, metalness: 1, transparent: true, opacity: 1, side: THREE.DoubleSide }));
-  const TRIMS = [
-    { key: 'neckTrim', v0: 0, v1: 0.012 },
-    { key: 'belt', v0: V_WAIST - 0.01, v1: V_WAIST + 0.008 },
-    { key: 'hemTrim', v0: V_HEM - 0.016, v1: V_HEM - 0.002 },
-  ].map((t) => {
-    const geo = makeGrid(NU, 3);
-    const mat = trimMat();
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.frustumCulled = false;
-    root.add(mesh);
-    return { ...t, geo, mat, mesh };
-  });
-
-  // Ko'krakdagi munchoqlar
-  const BEADS = 160;
-  const beadGeo = track(new THREE.SphereGeometry(0.0065, 10, 8));
-  const beadMat = track(new THREE.MeshStandardMaterial({ color: '#e8c56a', roughness: 0.2, metalness: 1 }));
-  const beads = new THREE.InstancedMesh(beadGeo, beadMat, BEADS);
-  beads.frustumCulled = false;
-  root.add(beads);
-  const beadPts = [];
-  { const r = seeded(21); for (let i = 0; i < BEADS; i++) beadPts.push({ th: (r() - 0.5) * Math.PI * 1.3, v: 0.03 + r() * (V_WAIST - 0.05) }); }
+  const NI = 14;
+  const illGeo = makeGrid(NU, NI);
+  const illusion = new THREE.Mesh(illGeo, sheerMat);
+  const topBandGeo = makeGrid(NU, 4);
+  const topBand = new THREE.Mesh(topBandGeo, bandMat);
+  const shBandGeo = makeGrid(NU, 4);
+  const shBand = new THREE.Mesh(shBandGeo, bandMat);
+  const beltGeo = makeGrid(NU, 3);
+  const belt = new THREE.Mesh(beltGeo, trimMat);
+  const NSU = 48; const NSV = 60;
+  const sleeveGeos = [makeGrid(NSU, NSV), makeGrid(NSU, NSV)];
+  const sleeves = sleeveGeos.map((g) => new THREE.Mesh(g, sheerMat));
+  // Etak chetidagi dantel lenta (yoy uzunligi bo'yicha bir tekis fistonchalar)
+  const borderGeo = track(new THREE.BufferGeometry());
+  borderGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((NB + 1) * 2 * 3), 3));
+  borderGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((NB + 1) * 2 * 2), 2));
+  borderGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array((NB + 1) * 2 * 3), 3));
+  { const idx = []; for (let i = 0; i < NB; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } borderGeo.setIndex(idx); }
+  for (let i = 0; i < (NB + 1) * 2; i++) borderGeo.attributes.normal.setXYZ(i, 0, 1, 0);
+  const borderMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, transparent: true, alphaTest: 0.05, depthWrite: false, roughness: 0.6, sheen: 1, sheenRoughness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const border = new THREE.Mesh(borderGeo, borderMat);
+  border.renderOrder = 1;
+  [dress, illusion, topBand, shBand, belt, border, ...sleeves].forEach((m) => { m.frustumCulled = false; root.add(m); });
+  illusion.renderOrder = 2; sleeves.forEach((s) => { s.renderOrder = 3; });
 
   // Uchqunlar
-  const NP = 120;
-  const ppos = new Float32Array(NP * 3);
-  const pr = seeded(9);
-  const pseed = [];
+  const NP = 90;
+  const ppos = new Float32Array(NP * 3); const pr = seeded(9); const pseed = [];
   for (let i = 0; i < NP; i++) {
-    const a = pr() * Math.PI * 2; const rr = 0.4 + pr() * 1.3;
+    const a = pr() * Math.PI * 2; const rr = 0.4 + pr() * 1.4;
     ppos[i * 3] = Math.cos(a) * rr; ppos[i * 3 + 1] = -1 + pr() * 2.1; ppos[i * 3 + 2] = Math.sin(a) * rr * 0.6;
-    pseed.push(0.03 + pr() * 0.06);
+    pseed.push(0.03 + pr() * 0.05);
   }
-  const pg = track(new THREE.BufferGeometry());
-  pg.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
+  const pg = track(new THREE.BufferGeometry()); pg.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
   const dotTex = track(new THREE.CanvasTexture(radialCanvas('rgba(255,255,255,1)', 'rgba(255,255,255,0)')));
-  const pm = track(new THREE.PointsMaterial({ size: 0.026, map: dotTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#ffe7b8', opacity: 0.85 }));
-  const points = new THREE.Points(pg, pm);
-  points.frustumCulled = false;
+  const pm = track(new THREE.PointsMaterial({ size: 0.022, map: dotTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: '#ffe9c2', opacity: 0.8 }));
+  const points = new THREE.Points(pg, pm); points.frustumCulled = false;
   scene.add(points);
 
-  // ----- Holat -----
-  const L = { rA: 0.5, aL: 1.6, aR: 2.2, bz: 0.62, unfurl: 0 };
-  const ids = GOWN_STYLES.map((s) => s.id);
-  let cur = o.style && PARAMS[o.style] ? o.style : 'gown';
-  let P = { ...PARAMS[cur] };
-  let morph = null; // {from, to, t0, dur, swapped}
-  let foldA = FOLDS[cur]; let foldB = FOLDS[cur]; let foldM = 0;
-  let unfurlStart = 0; let layoutReady = false;
-  let time = 0; let burst = 0;
-  let listeners = [];
-  let paused = false; let lastSwitch = performance.now();
-  let tokens = o.tokens || {};
-  let tex = null;
+  // ----- Shakl -----
+  const L = { rA: 0.5, aX: 0.6, bF: 0.7, bB: 0.45, unfurl: 0 };
+  const phase = [0.4, 2.1, 4.3, 1.2];
+  let S = SIL.aline;
 
-  function surf(th, v, layer, out) {
+  function bodiceTop(th) {
     const sn = Math.sin(th); const cs = Math.cos(th);
-    let x; let y; let z;
-    if (v <= V_WAIST) {
-      const s = v / V_WAIST;
-      let top = P.top - P.sweet * Math.pow(Math.max(0, cs), 6) + P.shoulder * Math.pow(Math.max(0, sn), 2);
-      top += (0.655 - top) * P.collar;
-      y = top + (P.waist - top) * s;
-      const r = torsoR(y) + 0.012;
-      const [sx, sz] = bodyScale(y);
-      x = sn * r * sx; z = cs * r * sz * (cs < 0 ? 0.94 : 1);
-    } else {
-      // Etakning "A" qismi
-      const sk = Math.min(1, (v - V_WAIST) / (V_HEM - V_WAIST));
-      const yEnd = FLOOR + 0.045;
-      const fa = sk;
-      const fb = 1 - Math.pow(1 - sk, 2.4);
-      const fm = sk < 0.62 ? 0.06 * sk / 0.62 : 0.06 + 0.94 * Math.pow((sk - 0.62) / 0.38, 1.6);
-      const f = fa * Math.max(0, 1 - P.bell - P.mermaid) + fb * P.bell + fm * P.mermaid;
-      const rw = torsoR(P.waist) + 0.014;
-      const rA = L.rA * P.rAmul;
-      const fold = lerp(foldVal(th, sk, foldA), foldVal(th, sk, foldB), foldM);
-      const sway = o.animate ? 0.008 * sk * sk * Math.sin(time * 1.1 + th * 3) : 0;
-      const lay = layer ? 0.024 : 0;
-      if (v <= V_HEM) {
-        y = P.waist + (yEnd - P.waist) * sk;
-        let r = rw + (rA - rw) * f;
-        const hipMin = (0.262 + 0.016) + (0.235 - 0.278) * Math.min(1, Math.max(0, (0.08 - y) / 0.6));
-        if (y > 0.08) r = Math.max(r, torsoR(y) + 0.014); else r = Math.max(r, hipMin);
-        r += fold + sway + lay;
-        const [sx, sz] = bodyScale(y);
-        x = sn * r * sx; z = cs * r * sz * (cs < 0 && y > 0 ? 0.94 : 1);
-      } else {
-        // Yoyilgan etak: harflar ostiga tarqaladi
-        const s = (v - V_HEM) / (1 - V_HEM);
-        const rEnd = rA + fold + sway + lay;
-        const [sxA, szA] = bodyScale(yEnd);
-        const xA = sn * rEnd * sxA; const zA = cs * rEnd * szA;
-        const u = L.unfurl;
-        const ax = sn >= 0 ? L.aR : L.aL;
-        const axE = rEnd + (ax - rEnd) * u;
-        const bzE = rEnd + (L.bz - rEnd) * u;
-        const e = 1 - Math.pow(1 - s, 1.7);
-        x = xA + (sn * axE - xA) * e;
-        z = zA + (cs * bzE * 0.95 - zA) * e;
-        const side = Math.abs(sn);
-        const tt = o.animate ? time : 0;
-        const wave = P.waves * s * (1.6 * Math.sin(th * 5 + tt * 1.1 + s * 3) + 0.8 * Math.sin(th * 11 - tt * 1.7 + s * 6));
-        const ruffle = 0.014 * Math.pow(s, 3) * Math.sin(th * 46 + tt * 2.4);
-        const curl = 0.05 * Math.pow(s, 4) * side;
-        y = yEnd * (1 - s) + FLOOR * s
-          + u * (P.billow * Math.sin(Math.PI * Math.pow(s, 0.85)) * (0.4 + 0.6 * side) + wave + ruffle + curl)
-          + (layer ? 0.012 : 0);
-        // Chetidagi burmalar gorizontal yo'nalishda ham
-        const rf = 1 + u * 0.012 * Math.pow(s, 2) * Math.sin(th * 23 + tt * 1.3);
-        x *= rf; z *= rf;
-      }
-    }
-    out[0] = x; out[1] = y; out[2] = z;
+    if (C.neckline === 'illusion') return 0.515 - 0.012 * Math.pow(Math.max(0, cs), 4);
+    if (C.neckline === 'collar') return 0.7;
+    if (C.neckline === 'oneshoulder') return 0.47 + 0.15 * Math.pow(Math.max(0, sn), 2) - 0.02 * Math.pow(Math.max(0, cs), 6);
+    return 0.472 - 0.038 * Math.pow(Math.max(0, cs), 6);
+  }
+  function onBody(th, y, off, out) {
+    const r = bodyR(y) + off;
+    const [sx, sz] = bScale(y);
+    const cs = Math.cos(th);
+    out[0] = Math.sin(th) * r * sx; out[1] = y; out[2] = cs * r * sz * (cs < 0 ? 0.94 : 1);
+  }
+  function foldPattern(th, s) {
+    if (C.fabric === 'pleated') return Math.abs(Math.sin(th * 34)) * 2 - 1;
+    return 0.52 * Math.sin(th * 7 + phase[0] + s * 0.8) + 0.3 * Math.sin(th * 12 + phase[1] - s * 1.1) + 0.18 * Math.sin(th * 21 + phase[2]);
   }
 
-  const tmp = [0, 0, 0];
-  function fillGrid(geo, nu, nv, v0, v1, layer, push = 0) {
-    const p = geo.attributes.position.array;
-    for (let j = 0; j <= nv; j++) {
-      const v = v0 + (v1 - v0) * (j / nv);
-      for (let i = 0; i <= nu; i++) {
-        const th = -Math.PI + (i / nu) * Math.PI * 2;
-        surf(th, v, layer, tmp);
-        const k = (j * (nu + 1) + i) * 3;
-        if (push) {
-          const r = Math.hypot(tmp[0], tmp[2]) || 1;
-          const sc = 1 + push / r;
-          p[k] = tmp[0] * sc; p[k + 1] = tmp[1]; p[k + 2] = tmp[2] * sc;
-        } else { p[k] = tmp[0]; p[k + 1] = tmp[1]; p[k + 2] = tmp[2]; }
+  // Asosiy yuza: th — aylana burchagi, v — yoqadan etak chetigacha
+  const res = { x: 0, y: 0, z: 0, f: 0 };
+  function surf(th, v) {
+    const sn = Math.sin(th); const cs = Math.cos(th);
+    const waist = S.waist;
+    if (v <= VW) {
+      const s = v / VW;
+      const topY = bodiceTop(th);
+      const y = topY + (waist - topY) * s;
+      const tmp = [0, 0, 0];
+      onBody(th, y, 0.011, tmp);
+      res.x = tmp[0]; res.y = y; res.z = tmp[2]; res.f = 0;
+      return res;
+    }
+    const rw = bodyR(waist) + 0.013;
+    // Har qanday siluetda etak "A" harfi joyidan chiqmaydi
+    const rA = Math.min(L.rA * S.rAmul, (L.aX - 0.005) / (1 + HEM_FLARE) - S.fold);
+    const ampMax = C.fabric === 'pleated' ? 0.009 : S.fold;
+    if (v <= VH) {
+      const s = (v - VW) / (VH - VW);
+      const y = waist + (FLOOR + 0.02 - waist) * s;
+      const fa = s; const fb = 1 - Math.pow(1 - s, 2.5);
+      const fm = s < 0.6 ? 0.06 * s / 0.6 : 0.06 + 0.94 * Math.pow((s - 0.6) / 0.4, 1.6);
+      const f = fa * Math.max(0, 1 - S.bell - S.mermaid) + fb * S.bell + fm * S.mermaid;
+      let r = rw + (rA - rw) * f;
+      const hipMin = (0.278 + (0.235 - 0.278) * Math.min(1, Math.max(0, (0.08 - y) / 0.6))) * SLIM;
+      if (y > 0.08) r = Math.max(r, bodyR(y) + 0.013); else r = Math.max(r, S.mermaid > 0.5 ? hipMin : 0.2);
+      const fp = foldPattern(th, s);
+      const amp = ampMax * Math.pow(s, 1.15);
+      r += amp * fp + rA * HEM_FLARE * Math.pow(smooth(0.78, 1, s), 2);
+      const [sx, sz] = bScale(y);
+      res.x = sn * r * sx; res.y = y; res.z = cs * r * sz * (cs < 0 && y > 0 ? 0.94 : 1); res.f = fp * Math.pow(s, 1.15);
+      return res;
+    }
+    // Polga tekis yoyilgan etak
+    const s = (v - VH) / (1 - VH);
+    const fp = foldPattern(th, 1);
+    const rEnd = rA * (1 + HEM_FLARE) + ampMax * fp;
+    const [sxA, szA] = bScale(FLOOR + 0.02);
+    const x0 = sn * rEnd * sxA; const z0 = cs * rEnd * szA;
+    const spread = (C.spread / 100) * L.unfurl;
+    const ax = L.aX;
+    const trainBack = L.bB + (L.bB * 2.2) * (C.train / 100);
+    const bz = lerp(trainBack, L.bF, smooth(-0.35, 0.35, cs));
+    const aE = rEnd + (Math.max(ax, rEnd) - rEnd) * spread;
+    const bE = rEnd + (Math.max(bz, rEnd) - rEnd) * spread;
+    const xE = sn * aE; const zE = cs * bE;
+    const e = 1 - Math.pow(1 - s, 1.25);
+    const fade = Math.pow(1 - s, 1.6);
+    const rr = 1 + (ampMax * 0.6 * fp * fade) / Math.max(0.2, Math.hypot(x0, z0));
+    res.x = lerp(x0, xE, e) * rr;
+    res.z = lerp(z0, zE, e) * rr;
+    res.y = FLOOR + 0.02 * Math.pow(1 - s, 2) + 0.03 * (0.5 + 0.5 * fp) * Math.sin(Math.PI * Math.min(1, s * 1.4)) * (1 - s) + 0.006 * Math.sin(Math.PI * s);
+    res.f = fp * fade - 0.9 * Math.pow(1 - s, 6);
+    return res;
+  }
+
+  const tmp3 = [0, 0, 0];
+  function updateDress() {
+    const p = dressGeo.attributes.position.array;
+    const uv = dressGeo.attributes.uv.array;
+    const col = dressGeo.attributes.color.array;
+    for (let j = 0; j <= NV; j++) {
+      const v = j / NV;
+      for (let i = 0; i <= NU; i++) {
+        const th = -Math.PI + (i / NU) * Math.PI * 2;
+        const q = surf(th, v);
+        const k = (j * (NU + 1) + i) * 3;
+        p[k] = q.x; p[k + 1] = q.y; p[k + 2] = q.z;
+        // Burmalardagi soya (ambient occlusion)
+        const shade = 1 - 0.16 * Math.max(0, -q.f) + 0.04 * Math.max(0, q.f) - (v > VH ? 0.03 : 0);
+        col[k] = col[k + 1] = col[k + 2] = Math.max(0.6, Math.min(1.08, shade));
       }
     }
-    geo.attributes.position.needsUpdate = true;
+    // Naqsh cho'zilmasligi uchun UV ikki yo'nalishda ham haqiqiy yoy uzunligi bo'yicha (chok orqada)
+    for (let j = 0; j <= NV; j++) {
+      let acc = 0;
+      const half = NU >> 1;
+      for (let i = half; i <= NU; i++) {
+        const k = j * (NU + 1) + i;
+        if (i > half) { const a = k * 3; const b = a - 3; acc += Math.hypot(p[a] - p[b], p[a + 1] - p[b + 1], p[a + 2] - p[b + 2]); }
+        uv[k * 2] = acc / TILE;
+      }
+      acc = 0;
+      for (let i = half; i >= 0; i--) {
+        const k = j * (NU + 1) + i;
+        if (i < half) { const a = k * 3; const b = a + 3; acc += Math.hypot(p[a] - p[b], p[a + 1] - p[b + 1], p[a + 2] - p[b + 2]); }
+        uv[k * 2] = -acc / TILE;
+      }
+    }
+    for (let i = 0; i <= NU; i++) {
+      let acc = 0;
+      for (let j = 0; j <= NV; j++) {
+        const k = j * (NU + 1) + i;
+        if (j > 0) {
+          const a = k * 3; const b = (k - NU - 1) * 3;
+          acc += Math.hypot(p[a] - p[b], p[a + 1] - p[b + 1], p[a + 2] - p[b + 2]);
+        }
+        uv[k * 2 + 1] = -acc / TILE;
+      }
+    }
+    if (C.scallop) updateBorder();
+    // Soya o'lchami etak bilan birga o'zgaradi
+    const sp = (C.spread / 100) * L.unfurl;
+    const ax = L.rA + (L.aX - L.rA) * sp;
+    const back = L.bB + L.bB * 2.2 * (C.train / 100);
+    const bz = L.rA + (Math.max(L.bF, back) - L.rA) * sp;
+    shadow.scale.set(ax * 1.12, bz * 1.12, 1);
+    dressGeo.attributes.position.needsUpdate = true;
+    dressGeo.attributes.uv.needsUpdate = true;
+    dressGeo.attributes.color.needsUpdate = true;
+    dressGeo.computeVertexNormals();
+  }
+
+  const NS = 2400;
+  const ex = new Float32Array(NS + 1); const ez = new Float32Array(NS + 1); const ecum = new Float32Array(NS + 1);
+  function updateBorder() {
+    for (let k = 0; k <= NS; k++) {
+      const q = surf(-Math.PI + (k / NS) * Math.PI * 2, 1);
+      ex[k] = q.x; ez[k] = q.z;
+      ecum[k] = k ? ecum[k - 1] + Math.hypot(ex[k] - ex[k - 1], ez[k] - ez[k - 1]) : 0;
+    }
+    const total = ecum[NS];
+    const lobes = Math.max(8, Math.round(total / LOBE / 2) * 2);
+    const p = borderGeo.attributes.position.array; const uv = borderGeo.attributes.uv.array;
+    const wIn = 0.06; const wOut = 0.05;
+    let k = 0;
+    for (let i = 0; i <= NB; i++) {
+      const target = (i / NB) * total;
+      while (k < NS - 1 && ecum[k + 1] < target) k++;
+      const t = (target - ecum[k]) / Math.max(1e-6, ecum[k + 1] - ecum[k]);
+      const x = lerp(ex[k], ex[k + 1], t); const z = lerp(ez[k], ez[k + 1], t);
+      let tx = ex[k + 1] - ex[k]; let tz = ez[k + 1] - ez[k];
+      const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+      // Tashqi normal (y o'qi atrofida)
+      const nx = tz; const nz = -tx;
+      const sgn = (x * nx + z * nz) >= 0 ? 1 : -1;
+      const a = i * 6;
+      p[a] = x - nx * sgn * wIn; p[a + 1] = FLOOR + 0.004; p[a + 2] = z - nz * sgn * wIn;
+      p[a + 3] = x + nx * sgn * wOut; p[a + 4] = FLOOR + 0.002; p[a + 5] = z + nz * sgn * wOut;
+      const u = (i / NB) * (lobes / 2);
+      uv[i * 4] = u; uv[i * 4 + 1] = 1; uv[i * 4 + 2] = u; uv[i * 4 + 3] = 0;
+    }
+    borderGeo.attributes.position.needsUpdate = true; borderGeo.attributes.uv.needsUpdate = true;
+  }
+
+  function fillBand(geo, nv, fn) {
+    const p = geo.attributes.position.array; const uv = geo.attributes.uv.array;
+    for (let j = 0; j <= nv; j++) for (let i = 0; i <= NU; i++) {
+      const th = -Math.PI + (i / NU) * Math.PI * 2;
+      fn(th, j / nv, tmp3);
+      const k = j * (NU + 1) + i;
+      p[k * 3] = tmp3[0]; p[k * 3 + 1] = tmp3[1]; p[k * 3 + 2] = tmp3[2];
+      uv[k * 2] = (i / NU) * (2 * Math.PI * 0.27) / (TILE * 0.5); uv[k * 2 + 1] = tmp3[1] / (TILE * 0.5);
+    }
+    geo.attributes.position.needsUpdate = true; geo.attributes.uv.needsUpdate = true;
     geo.computeVertexNormals();
   }
 
-  const m4 = new THREE.Matrix4();
-  function updateGeometry() {
-    fillGrid(dressGeo, NU, NV, 0, 1, 0);
-    if (P.overlay > 0.01) fillGrid(overGeo, NU, NVO, V_WAIST, 1, 1);
-    over.visible = P.overlay > 0.01;
-    overMat.opacity = 0.3 * P.overlay;
-    TRIMS.forEach((t) => {
-      const a = P[t.key];
-      t.mesh.visible = a > 0.02;
-      t.mat.opacity = a;
-      if (t.mesh.visible) fillGrid(t.geo, NU, 3, t.v0, t.v1, 0, 0.004);
-    });
-    beads.visible = P.beads > 0.02;
-    if (beads.visible) {
-      for (let i = 0; i < BEADS; i++) {
-        const b = beadPts[i];
-        surf(b.th, b.v, 0, tmp);
-        const r = Math.hypot(tmp[0], tmp[2]) || 1;
-        const sc = 1 + 0.004 / r;
-        const s = P.beads;
-        m4.makeScale(s, s, s).setPosition(tmp[0] * sc, tmp[1], tmp[2] * sc);
-        beads.setMatrixAt(i, m4);
-      }
-      beads.instanceMatrix.needsUpdate = true;
+  function sleevePoint(side, t, phi, out) {
+    // Yelkadan bilakkacha bir oz tashqariga egilgan naycha
+    const P0 = [side * 0.282 * SLIM, 0.575, -0.004]; const P1 = [side * 0.33 * SLIM, 0.3, 0.02]; const P2 = [side * 0.318 * SLIM, 0.035, 0.05];
+    const a = (1 - t) * (1 - t); const b = 2 * (1 - t) * t; const c = t * t;
+    const cx = a * P0[0] + b * P1[0] + c * P2[0];
+    let cy = a * P0[1] + b * P1[1] + c * P2[1];
+    const cz = a * P0[2] + b * P1[2] + c * P2[2];
+    let r = (0.058 * (1 - t) + 0.036 * t) * 0.9;
+    if (t < 0.1) r *= 1 + 0.35 * (1 - t / 0.1);
+    if (t > 0.97 && C.scallop) cy -= 0.008 * Math.abs(Math.sin(phi * 6));
+    out[0] = cx + Math.cos(phi) * r; out[1] = cy; out[2] = cz + Math.sin(phi) * r * 0.85;
+  }
+
+  function updateParts() {
+    const ill = C.neckline === 'illusion';
+    const withSleeves = C.sleeves === 'long' && (C.neckline === 'illusion' || C.neckline === 'collar');
+    illusion.visible = ill;
+    shBand.visible = ill;
+    topBand.visible = C.fabric === 'lace' || ill;
+    belt.visible = C.trim !== 'none';
+    sleeves.forEach((s) => { s.visible = withSleeves; });
+    if (ill) {
+      fillBand(illGeo, NI, (th, s, out) => onBody(th, lerp(0.505, 0.6, s), 0.007, out));
+      fillBand(shBandGeo, 4, (th, s, out) => {
+        let y = lerp(0.578, 0.608, s);
+        if (s === 0 && C.scallop) y -= 0.009 * Math.abs(Math.sin(th * 30));
+        onBody(th, y, 0.011, out);
+      });
+    }
+    if (topBand.visible) {
+      fillBand(topBandGeo, 4, (th, s, out) => {
+        const t0 = bodiceTop(th);
+        let y = lerp(t0 - 0.006, t0 + 0.014, s);
+        if (s === 1 && C.scallop) y += 0.008 * Math.abs(Math.sin(th * 30));
+        onBody(th, y, 0.0125, out);
+      });
+    }
+    if (belt.visible) fillBand(beltGeo, 3, (th, s, out) => onBody(th, lerp(S.waist - 0.008, S.waist + 0.008, s), 0.016, out));
+    if (withSleeves) {
+      sleeveGeos.forEach((geo, si) => {
+        const side = si === 0 ? -1 : 1;
+        const p = geo.attributes.position.array; const uv = geo.attributes.uv.array;
+        for (let j = 0; j <= NSV; j++) for (let i = 0; i <= NSU; i++) {
+          const phi = (i / NSU) * Math.PI * 2;
+          sleevePoint(side, j / NSV, phi, tmp3);
+          const k = j * (NSU + 1) + i;
+          p[k * 3] = tmp3[0]; p[k * 3 + 1] = tmp3[1]; p[k * 3 + 2] = tmp3[2];
+          uv[k * 2] = (i / NSU) * (2 * Math.PI * 0.05) / (TILE * 0.5); uv[k * 2 + 1] = -(j / NSV) * 0.56 / (TILE * 0.5);
+        }
+        geo.attributes.position.needsUpdate = true; geo.attributes.uv.needsUpdate = true;
+        geo.computeVertexNormals();
+      });
     }
   }
 
-  function applyMaterial(id) {
-    const colors = tokens.colors || {};
-    const m = MATERIAL[id];
-    if (tex) tex.dispose();
-    tex = new THREE.CanvasTexture(styleCanvas(id, {
-      primary: colors.primary || '#6e533f', accent: colors.accent || '#b89474',
-      heroBg: colors.heroBg || '#8d7360', heroBg2: colors.heroBg2 || '#1d2a6b', dark: colors.dark || '#2b2118',
-    }));
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(m.rep[0], m.rep[1]);
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    dressMat.map = tex;
-    dressMat.roughness = m.roughness;
-    dressMat.metalness = m.metalness;
-    dressMat.sheen = m.sheen;
-    dressMat.sheenRoughness = m.sheenRoughness;
-    dressMat.sheenColor = new THREE.Color(m.sheenColor);
+  // ----- Matolar -----
+  let texs = [];
+  function applyMaterials() {
+    texs.forEach((t) => t.dispose());
+    texs = [];
+    const mk = (cv, srgb = true) => {
+      const t = new THREE.CanvasTexture(cv);
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texs.push(t);
+      return t;
+    };
+    const m = FABRIC_MAT[C.fabric];
+    const colorTex = mk(fabricColorCanvas(C.fabric, C.color, C.lace));
+    if (C.fabric !== 'lace') colorTex.repeat.set(C.fabric === 'atlas' ? 0.6 : 0.8, 0.8);
+    dressMat.map = colorTex;
+    dressMat.bumpMap = m.bump ? mk(laceBumpCanvas(), false) : null;
+    dressMat.bumpScale = m.bump || 1;
+    dressMat.roughness = m.roughness; dressMat.metalness = m.metalness;
+    dressMat.sheen = m.sheen; dressMat.sheenRoughness = m.sheenRoughness;
+    dressMat.sheenColor = new THREE.Color(C.fabric === 'velvet' ? hex(C.color, 0.45) : '#ffffff');
     dressMat.clearcoat = m.clearcoat;
     if ('anisotropy' in dressMat) dressMat.anisotropy = m.anisotropy;
-    dressMat.envMapIntensity = m.env ?? 1;
     dressMat.needsUpdate = true;
-    const gold = id === 'oneshoulder' ? '#e9cf8a' : hex(colors.accent || '#d4a437', 0.05);
-    TRIMS.forEach((t) => t.mat.color.set(id === 'national' ? '#e2b54e' : gold));
+    // Shaffof to'r va dantel qismlar (yenglar, yoqa)
+    const laceCol = mk(laceColorCanvas(hex(C.lace, -0.04), C.lace));
+    sheerMat.map = laceCol;
+    sheerMat.alphaMap = mk(laceMaskCanvas(0.32), false);
+    sheerMat.color.set('#ffffff');
+    sheerMat.sheenColor = new THREE.Color('#ffffff');
+    sheerMat.needsUpdate = true;
+    bandMat.map = laceCol;
+    bandMat.alphaMap = mk(laceMaskCanvas(0.55), false);
+    bandMat.needsUpdate = true;
+    const bc = mk(borderCanvas(C.lace, false)); bc.wrapT = THREE.ClampToEdgeWrapping;
+    const bm = mk(borderCanvas(C.lace, true), false); bm.wrapT = THREE.ClampToEdgeWrapping;
+    borderMat.map = bc; borderMat.alphaMap = bm;
+    borderMat.needsUpdate = true;
+    border.visible = !!C.scallop;
+    trimMat.color.set(C.trim === 'silver' ? '#d9dcdf' : '#d9ad52');
+    metalMat.color.set(C.finial === 'gold' ? '#d8b25e' : C.finial === 'wood' ? '#4a3324' : '#d7d9dc');
+    metalMat.metalness = C.finial === 'wood' ? 0.1 : 1;
+    metalMat.roughness = C.finial === 'wood' ? 0.5 : 0.18;
+    bodyMat.color.set(MANNEQUIN_COLORS[C.mannequin] || MANNEQUIN_COLORS.linen);
+    points.visible = !!C.sparkle;
   }
 
   function setTokens(t) {
     tokens = t || {};
     const colors = tokens.colors || {};
-    const accent = colors.accent || '#d4a437';
-    rimL.color.set(hex(accent, 0.35));
-    rimR.color.set(hex(colors.heroText || '#ffffff', 0.1));
-    hemi.color.set(hex(colors.heroText || '#ffffff', 0.2));
-    hemi.groundColor.set(hex(colors.heroBg2 || '#333333', -0.2));
-    bodyMat.color.set(MANNEQUIN_COLORS[tokens.mannequin] || MANNEQUIN_COLORS.linen);
-    woodMat.color.set(tokens.dark ? accent : '#3b2a1f');
-    pm.color.set(hex(accent, 0.45));
-    applyMaterial(morph && !morph.swapped ? morph.from : cur);
+    rimL.color.set(hex(colors.accent || '#d4a437', 0.45));
+    rimR.color.set(hex(colors.heroText || '#ffffff', 0.15));
+    hemi.color.set(hex(colors.heroText || '#ffffff', 0.25));
+    hemi.groundColor.set(hex(colors.heroBg2 || '#2a2018', -0.25));
+    pm.color.set(hex(colors.accent || '#d4a437', 0.5));
     needs = true;
   }
 
-  function setStyle(id, user = false) {
-    if (user) { paused = false; lastSwitch = performance.now(); }
-    if (!PARAMS[id] || (id === cur && !morph)) return;
-    const from = morph ? morph.to : cur;
-    if (id === from) return;
-    morph = { fromP: { ...P }, from, to: id, t0: performance.now(), dur: o.animate ? 1500 : 1, swapped: false };
-    foldA = { ...FOLDS[from] }; foldB = FOLDS[id]; foldM = 0;
-    cur = id;
-    lastSwitch = performance.now();
-    if (user) paused = false;
-    listeners.forEach((fn) => fn(id));
+  // ----- Kamera: so'zdagi harflarga moslash -----
+  let W = 1; let H = 1; let lay = null; let layoutReady = false; let unfurlStart = 0;
+  const vtmp = new THREE.Vector3();
+  const ray = new THREE.Raycaster();
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR);
+  function place(tx, ty, d) {
+    const ph = THREE.MathUtils.degToRad(o.tilt);
+    camera.position.set(tx, ty + d * Math.sin(ph), d * Math.cos(ph));
+    camera.lookAt(tx, ty, 0);
+    camera.updateMatrixWorld();
+  }
+  function proj(x, y, z) { vtmp.set(x, y, z).project(camera); return [(vtmp.x + 1) / 2 * W, (1 - vtmp.y) / 2 * H]; }
+  function floorHit(px, py) {
+    ray.setFromCamera(new THREE.Vector2((px / W) * 2 - 1, -(py / H) * 2 + 1), camera);
+    const out = new THREE.Vector3();
+    return ray.ray.intersectPlane(floorPlane, out) ? out : null;
   }
 
-  function nextStyle() {
-    const i = ids.indexOf(morph ? morph.to : cur);
-    setStyle(ids[(i + 1) % ids.length]);
-  }
-
-  // Tartib: DOMdagi harflar joylashuvi (piksel) asosida kamera va etak kengligini moslash
-  let W = 1; let H = 1;
-  let lay = null;
-  function setLayout(l) {
-    lay = l;
-    applyLayout();
-    if (!layoutReady) {
-      layoutReady = true;
-      unfurlStart = performance.now() + (o.animate ? 450 : -10000);
-    }
-    needs = true;
-  }
-
-  function applyLayout() {
+  function solve() {
     const r = container.getBoundingClientRect();
     W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
     renderer.setSize(W, H, false);
     cnv.style.width = '100%'; cnv.style.height = '100%';
-    camera.aspect = W / H;
-    if (!lay) {
-      const k = 1.95 / (H * 0.8);
-      const d = (k * H) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
-      camera.position.set(0, -0.08, d); camera.lookAt(0, -0.08, 0); camera.updateProjectionMatrix();
-      return;
-    }
-    const floorPx = lay.baselinePx + lay.capPx * 0.1;
-    // Telefonda harflar kichik bo'lgani uchun ko'ylak nisbatan balandroq
-    const skirtPx = lay.capPx * (W < 700 ? 2.3 : 1.45);
-    let k = 1.3 / skirtPx;
-    const minTop = lay.minTop || 90;
-    if (floorPx - 1.85 / k < minTop) k = 1.85 / Math.max(80, floorPx - minTop);
+    camera.aspect = W / H; camera.updateProjectionMatrix();
     const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    const d = (k * H) / (2 * tan);
-    const camX = -(lay.aPx - W / 2) * k;
-    const camY = FLOOR + (floorPx - H / 2) * k;
-    camera.position.set(camX, camY, d);
-    camera.lookAt(camX, camY, 0);
-    camera.far = d + 20;
-    camera.updateProjectionMatrix();
-    // Perspektiva tufayli old qismi kattaroq ko'rinadi — ozgina kamaytiramiz
-    const persp = d / (d + 0.35);
-    L.rA = Math.min(0.75, Math.max(0.38, (lay.letterW / 2) * k * 1.08));
-    L.aL = Math.max(L.rA + 0.2, (lay.aPx - lay.leftPx) * k * 1.04 * persp);
-    L.aR = Math.max(L.rA + 0.2, (lay.rightPx - lay.aPx) * k * 1.04 * persp);
-    L.bz = Math.min(0.75, Math.max(0.46, L.rA * 1.12));
+    if (!lay) { place(0, -0.2, 2.2 / tan); return; }
+    const floorPx = lay.baselinePx + lay.capPx * 0.02;
+    // Ko'ylak baland va nafis: umumiy bo'yi harf balandligidan ancha katta
+    // Bo'yi: harf balandligidan ancha katta, lekin etak "A" joyiga sig'ib, A shakli saqlanadi
+    const totalPx = Math.min(lay.capPx * (W < 700 ? 5 : 2.75), lay.letterW * 1.85);
+    let skirtPx = totalPx * ((0.3 - FLOOR) / (TOPY - FLOOR));
+    const solveFor = (spx) => {
+      let tx = 0; let ty = -0.4; let d = (1.3 * H) / (spx * 2 * tan);
+      for (let it = 0; it < 10; it++) {
+        place(tx, ty, d);
+        const pf = proj(0, FLOOR, 0); const pw = proj(0, 0.3, 0);
+        d *= (pf[1] - pw[1]) / spx;
+        place(tx, ty, d);
+        const q = proj(0, FLOOR, 0);
+        const k = (2 * d * tan) / H;
+        tx += (q[0] - lay.aPx) * k;
+        ty -= (q[1] - floorPx) * k;
+      }
+      place(tx, ty, d);
+    };
+    solveFor(skirtPx);
+    const minTop = lay.minTop || 90;
+    const topPy = proj(0, TOPY, 0)[1];
+    if (topPy < minTop) {
+      skirtPx *= (floorPx - minTop) / Math.max(40, floorPx - topPy);
+      solveFor(skirtPx);
+    }
+    // Etak faqat "A" harfi uchun ajratilgan joyda qoladi — qo'shni harflarga tarqalmaydi
+    const lh = floorHit(lay.aPx - lay.letterW / 2, floorPx); const rh = floorHit(lay.aPx + lay.letterW / 2, floorPx);
+    const hw = lh && rh ? (rh.x - lh.x) / 2 : 0.6;
+    L.rA = Math.min(0.9, Math.max(0.25, hw * 0.84));
+    L.aX = Math.max(L.rA * (1 + HEM_FLARE) + 0.01, hw - 0.07);
+    L.bF = hw * 1.15;
+    L.bB = hw * 0.85;
   }
 
-  // Kursorga qarab yengil burilish
-  let mx = 0; let rotY = 0;
+  function setLayout(l) {
+    lay = l;
+    solve();
+    if (!layoutReady) {
+      layoutReady = true;
+      unfurlStart = performance.now() + (o.animate ? 400 : -10000);
+    }
+    rebuild();
+  }
+
+  function rebuild() { S = SIL[C.silhouette] || SIL.aline; updateDress(); updateParts(); needs = true; }
+
+  function setConfig(c) {
+    C = normalizeGown(c);
+    applyMaterials();
+    rebuild();
+  }
+
+  // ----- Animatsiya -----
+  let mx = 0; let rotY = 0; let time = 0;
   const onMove = (e) => { mx = (e.clientX / window.innerWidth - 0.5) * 2; };
   window.addEventListener('pointermove', onMove, { passive: true });
-
-  let raf = 0; let visible = true; let needs = true; let disposed = false; let last = performance.now();
+  let raf = 0; let visible = true; let needs = true; let last = performance.now(); let lastRender = 0;
   function frame(now) {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (!visible || document.hidden) return;
-    let geoDirty = false;
-    if (o.animate) { time += dt; geoDirty = true; }
-    // Ochilish (etak yoyilishi)
+    let dirty = needs;
     if (layoutReady && L.unfurl < 1) {
-      const t = Math.min(1, Math.max(0, (now - unfurlStart) / 2400));
-      L.unfurl = easeOut(t);
-      geoDirty = true;
+      L.unfurl = easeOut(Math.min(1, Math.max(0, (now - unfurlStart) / 2200)));
+      updateDress();
+      dirty = true;
     }
-    // Turlar almashinuvi
-    if (morph) {
-      const t = Math.min(1, (now - morph.t0) / morph.dur);
-      const e = easeInOut(t);
-      P = mixParams(morph.fromP, PARAMS[morph.to], e);
-      foldM = e;
-      if (!morph.swapped && t >= 0.5) { morph.swapped = true; applyMaterial(morph.to); burst = 1; }
-      if (t >= 1) { P = { ...PARAMS[morph.to] }; foldA = FOLDS[morph.to]; foldM = 0; morph = null; }
-      geoDirty = true;
-    } else if (o.animate && !paused && layoutReady && L.unfurl >= 1 && now - lastSwitch > o.cycleMs) {
-      nextStyle();
-    }
-    // Burilish
-    const target = o.animate ? mx * 0.16 + Math.sin(time * 0.35) * 0.05 : 0;
-    rotY += (target - rotY) * 0.04;
-    root.rotation.y = rotY;
-    // Uchqunlar
-    if (o.animate) {
-      burst *= 0.96;
+    if (o.animate && C.motion) {
+      time += dt;
+      const target = mx * 0.06 + Math.sin(time * 0.3) * 0.035;
+      const nr = rotY + (target - rotY) * 0.04;
+      if (Math.abs(nr - rotY) > 1e-5) { rotY = nr; root.rotation.y = rotY; dirty = true; }
+    } else if (rotY !== 0) { rotY = 0; root.rotation.y = 0; dirty = true; }
+    if (points.visible && o.animate) {
       const pa = points.geometry.attributes.position;
-      for (let i = 0; i < NP; i++) {
-        let y = pa.getY(i) + dt * pseed[i] * (1 + burst * 6);
-        if (y > 1.2) y = -1;
-        pa.setY(i, y);
-      }
-      pa.needsUpdate = true;
-      points.rotation.y += dt * 0.04;
+      for (let i = 0; i < NP; i++) { let y = pa.getY(i) + dt * pseed[i]; if (y > 1.2) y = -1; pa.setY(i, y); }
+      pa.needsUpdate = true; points.rotation.y += dt * 0.04; dirty = true;
     }
-    if (geoDirty || needs) {
-      updateGeometry();
-      renderer.render(scene, camera);
-      needs = false;
-    }
+    // Yengil tebranish uchun ~30 kadr/s yetarli — protsessorni tejaydi
+    if (dirty && (needs || L.unfurl < 1 || now - lastRender > 32)) { renderer.render(scene, camera); needs = false; lastRender = now; }
   }
 
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((en) => { visible = en[0].isIntersecting; }, { threshold: 0.01 }) : null;
   io && io.observe(container);
-  const ro = 'ResizeObserver' in window ? new ResizeObserver(() => { applyLayout(); needs = true; }) : null;
-  ro ? ro.observe(container) : window.addEventListener('resize', applyLayout);
+  const ro = 'ResizeObserver' in window ? new ResizeObserver(() => { solve(); rebuild(); }) : null;
+  ro ? ro.observe(container) : window.addEventListener('resize', () => { solve(); rebuild(); });
 
-  applyLayout();
+  solve();
   setTokens(tokens);
-  applyMaterial(cur);
-  updateGeometry();
+  applyMaterials();
+  rebuild();
   raf = requestAnimationFrame(frame);
   container.classList.add('has-3d', 'is-gown');
 
   return {
     canvas: cnv,
-    styles: GOWN_STYLES,
     setLayout,
+    setConfig,
     setTokens,
-    setStyle: (id) => setStyle(id, true),
-    next: nextStyle,
-    getStyle: () => (morph ? morph.to : cur),
-    onStyle(fn) { listeners.push(fn); },
-    pause(p) { paused = !!p; if (!p) lastSwitch = performance.now(); },
+    getConfig: () => ({ ...C }),
+    _debug: { scene, camera, renderer, border, dress },
     dispose() {
-      disposed = true;
       cancelAnimationFrame(raf);
       io && io.disconnect(); ro && ro.disconnect();
       window.removeEventListener('pointermove', onMove);
-      if (tex) tex.dispose();
+      texs.forEach((t) => t.dispose());
       disposables.forEach((d) => d.dispose && d.dispose());
       envRT.dispose(); pmrem.dispose(); renderer.dispose();
       cnv.remove();
       container.classList.remove('has-3d', 'is-gown');
-      listeners = [];
-      void disposed;
     },
   };
 }

@@ -350,5 +350,21 @@ export const DEFAULT_SETTINGS = {
   "animations": true,
   "three_d": true,
   "cursor": true
+ },
+ "gown": {
+  "silhouette": "aline",
+  "neckline": "illusion",
+  "sleeves": "long",
+  "fabric": "lace",
+  "color": "#efe6d8",
+  "lace": "#fffdf8",
+  "trim": "none",
+  "scallop": true,
+  "spread": 100,
+  "train": 40,
+  "mannequin": "linen",
+  "finial": "silver",
+  "sparkle": false,
+  "motion": true
  }
 };

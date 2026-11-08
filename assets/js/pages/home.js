@@ -6,6 +6,7 @@ import { esc, icon, safeUrl, isTouch } from '../utils.js';
 import { getTokens } from '../theme.js';
 import { animationsEnabled } from '../anim.js';
 import { workCard } from '../components.js';
+import { normalizeGown } from '../gown-config.js';
 
 let gown = null;
 let figureMode = '';
@@ -21,7 +22,6 @@ function heroTextHtml(s, counts) {
     </div>
     <a class="btn btn--light hero-cta" href="/projects" data-reveal="fade" style="--d:.7s">${esc(t('nav_projects'))}${icon('arrowRight')}</a>
     ${tr(hero.side_text) ? `<p class="hero-side" data-reveal="fade" style="--d:.9s">${esc(tr(hero.side_text))}</p>` : ''}
-    ${figureMode === '3d' ? '<div class="hero-styles" id="hero-styles" data-reveal="fade" style="--d:1.4s"></div>' : ''}
     <span class="hero-scroll" aria-hidden="true"></span>
     <div class="hero-bar" data-reveal="up" style="--d:.8s">
       <div class="hero-stat">${icon('grid')}<div><b data-count="${counts.projects}">0</b><span>${esc(t('projects_count'))}</span></div></div>
@@ -46,6 +46,9 @@ function measureWord() {
   let ai = chars.findIndex((c) => /[aAаА]/.test(c.textContent));
   const hasA = ai >= 0;
   if (!hasA) ai = Math.floor((chars.length - 1) / 2);
+  // "A" harfi uchun ajratilgan bo'shliq (qo'shni harflar orasidagi joy)
+  const slotL = hasA && ai > 0 ? rects[ai - 1].right : rects[ai].left;
+  const slotR = hasA && ai < rects.length - 1 ? rects[ai + 1].left : rects[ai].right;
   const baseline = clone.querySelector('.hero-baseline').getBoundingClientRect().top - hr.top;
   const cs = getComputedStyle(clone);
   const fs = parseFloat(cs.fontSize) || 200;
@@ -57,8 +60,8 @@ function measureWord() {
     if (m.actualBoundingBoxAscent > fs * 0.4) capPx = m.actualBoundingBoxAscent;
   } catch (e) { /* taxminiy qiymat qoladi */ }
   clone.remove();
-  const aPx = (rects[ai].left + rects[ai].right) / 2 - hr.left;
-  const letterW = rects[ai].width;
+  const aPx = (slotL + slotR) / 2 - hr.left;
+  const letterW = Math.max(rects[ai].width, slotR - slotL);
   const header = document.getElementById('site-header');
   let minTop = (header ? header.offsetHeight : 78) + 14;
   // Ko'ylak tepasi chapdagi matn yoki o'ngdagi tugma bilan to'qnashmasin
@@ -76,32 +79,6 @@ function measureWord() {
   };
 }
 
-function renderStylesUI() {
-  const box = document.getElementById('hero-styles');
-  if (!box || !gown) return;
-  const cur = gown.getStyle();
-  const st = gown.styles.find((x) => x.id === cur) || gown.styles[0];
-  if (!box.dataset.built) {
-    box.dataset.built = '1';
-    box.innerHTML = `<span class="hero-style-name">${icon('dress')}<span class="hero-style-label"></span></span>
-      <div class="hero-style-dots">${gown.styles.map((x) => `<button type="button" data-style="${x.id}" aria-label="${esc(tr(x.name))}" title="${esc(tr(x.name))}"><i></i></button>`).join('')}</div>`;
-    box.addEventListener('click', (e) => { const b = e.target.closest('[data-style]'); if (b) gown.setStyle(b.dataset.style); });
-    box.addEventListener('mouseenter', () => gown.pause(true));
-    box.addEventListener('mouseleave', () => gown.pause(false));
-  }
-  const label = box.querySelector('.hero-style-label');
-  if (label.textContent !== tr(st.name)) label.textContent = tr(st.name);
-  box.querySelectorAll('[data-style]').forEach((b) => {
-    const on = b.dataset.style === cur;
-    if (on && !b.classList.contains('is-active')) {
-      b.classList.remove('is-active');
-      void b.offsetWidth; // progress animatsiyasini qayta boshlash
-    }
-    b.classList.toggle('is-active', on);
-    b.setAttribute('aria-pressed', String(on));
-  });
-}
-
 // Uzun so'z ekrandan chiqib ketmasligi uchun shrift o'lchamini moslash
 function fitWord() {
   const hero = document.getElementById('hero');
@@ -114,14 +91,20 @@ function fitWord() {
   if (w > max) word.style.fontSize = `${(parseFloat(getComputedStyle(word).fontSize) * max) / w}px`;
 }
 
+// Ko'ylak turadigan "A" harfini yashirish (unga keng joy ajratiladi)
+function markDressLetter() {
+  const chars = Array.from(document.querySelectorAll('#hero-text .hero-word .ch'));
+  const ai = gown ? chars.findIndex((c) => /[aAаА]/.test(c.textContent)) : -1;
+  chars.forEach((c, i) => c.classList.toggle('is-dress-letter', i === ai));
+}
+
 function syncGown() {
+  markDressLetter();
   fitWord();
   if (!gown) return;
   const l = measureWord();
   if (!l) return;
-  document.querySelectorAll('#hero-text .hero-word .ch').forEach((c, i) => c.classList.toggle('is-dress-letter', l.hasA && i === l.aIndex));
   gown.setLayout(l);
-  renderStylesUI();
 }
 
 let syncTimer = 0;
@@ -148,9 +131,13 @@ async function setupFigure(site) {
     if (!mod.webglAvailable()) throw new Error('webgl');
     const tk = getTokens();
     gown = mod.createGown(fig, {
-      tokens: tk, animate: animationsEnabled(), quality: window.innerWidth < 700 ? 'low' : 'high', style: mod.styleForFabric(tk.fabric),
+      tokens: tk, animate: animationsEnabled(), quality: window.innerWidth < 700 ? 'low' : 'high', config: normalizeGown(site.settings.gown),
     });
-    gown.onStyle(() => renderStylesUI());
+    // Admin paneldagi "3D ko'ylak" bo'limidan jonli ko'rinish
+    window.addEventListener('message', (e) => {
+      if (e.origin !== location.origin || !e.data || e.data.type !== 'ms-gown-preview' || !gown) return;
+      gown.setConfig(e.data.config);
+    });
     if (/[?&]debug3d\b/.test(location.search)) window.__gown = gown;
     fig.classList.add('is-in');
     window.addEventListener('resize', () => scheduleSync(150));

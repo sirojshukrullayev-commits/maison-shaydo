@@ -5,6 +5,7 @@ import { esc, icon, toast, slugify, safeUrl } from '../utils.js';
 import { tr } from '../i18n.js';
 import { DEFAULT_SETTINGS, PRESETS } from '../defaults.js';
 import { applyTheme, normalizeTokens, FONTS, PATTERNS } from '../theme.js';
+import { GOWN_DEFAULTS, GOWN_OPTIONS, normalizeGown } from '../gown-config.js';
 
 const S = { sb: null, user: null, settings: {}, themes: [], cats: [], dirty: false, unread: 0 };
 
@@ -144,6 +145,7 @@ const NAV = [
   ['messages', 'message', 'Xabarlar'],
   ['label', '', 'Ko‘rinish'],
   ['design', 'palette', 'Dizayn va mavzular'],
+  ['gown', 'dress', '3D ko‘ylak'],
   ['settings', 'settings', 'Sozlamalar'],
 ];
 
@@ -219,6 +221,7 @@ async function route() {
     else if (name === 'contact') await viewContact();
     else if (name === 'messages') await viewMessages();
     else if (name === 'design') { if (id) await viewThemeEdit(id); else await viewDesign(); }
+    else if (name === 'gown') await viewGown();
     else if (name === 'settings') await viewSettings();
     else { location.hash = '#/dashboard'; }
   } catch (e) {
@@ -741,7 +744,7 @@ async function viewDesign() {
   const c1 = card('Umumiy ko‘rinish', 'Animatsiya va effektlarni yoqish yoki o‘chirish');
   const f1 = createForm([
     { key: 'animations', label: 'Animatsiyalar (paydo bo‘lish, harakat)', type: 'toggle', text: 'Yoqilgan', default: true },
-    { key: 'three_d', label: '3D maneken (bosh sahifada)', type: 'toggle', text: 'Yoqilgan', default: true },
+    { key: 'three_d', label: '3D ko‘ylak (bosh sahifada)', type: 'toggle', text: 'Yoqilgan', default: true, help: 'Ko‘ylakning ko‘rinishi “3D ko‘ylak” bo‘limida sozlanadi' },
     { key: 'cursor', label: 'Maxsus kursor effekti', type: 'toggle', text: 'Yoqilgan', default: true },
   ], app0);
   c1.querySelector('.a-card-body').appendChild(f1.el);
@@ -818,8 +821,8 @@ async function viewThemeEdit(id) {
     { key: 'radius', label: 'Burchaklar yumaloqligi', type: 'range', min: 0, max: 36, unit: 'px' },
     { key: 'pattern', label: 'Fon naqshi', type: 'select', options: PATTERNS.map((p) => ({ value: p, label: PATTERN_LABELS[p] })) },
     { key: 'dark', label: 'To‘q (qorong‘i) mavzu', type: 'toggle', text: 'Ha' },
-    { type: 'group', label: '3D maneken' },
-    { key: 'fabric', label: 'Libos matosi va bichimi', type: 'select', options: Object.keys(FABRIC_LABELS).map((p) => ({ value: p, label: FABRIC_LABELS[p] })) },
+    { type: 'group', label: 'Loyiha sahifasidagi 3D maneken' },
+    { key: 'fabric', label: 'Libos matosi va bichimi (bosh sahifadagi ko‘ylak “3D ko‘ylak” bo‘limida)', type: 'select', options: Object.keys(FABRIC_LABELS).map((p) => ({ value: p, label: FABRIC_LABELS[p] })) },
     { key: 'mannequin', label: 'Maneken rangi', type: 'select', options: Object.keys(MANNEQUIN_LABELS).map((p) => ({ value: p, label: MANNEQUIN_LABELS[p] })) },
   ], flat);
   const tokensFrom = () => {
@@ -883,6 +886,97 @@ async function viewThemeEdit(id) {
   content().innerHTML = '';
   content().appendChild(wrap);
   markDirty(form.el);
+}
+
+// ---------------- 3D ko'ylak (bosh sahifa) ----------------
+const GOWN_PRESETS = [
+  { name: 'Kelin libosi (dantel)', v: { silhouette: 'aline', neckline: 'illusion', sleeves: 'long', fabric: 'lace', color: '#efe6d8', lace: '#fffdf8', trim: 'none', scallop: true, mannequin: 'linen', finial: 'silver', sparkle: false } },
+  { name: 'Bal libosi (oq atlas)', v: { silhouette: 'ball', neckline: 'strapless', sleeves: 'none', fabric: 'satin', color: '#f4efe6', lace: '#ffffff', trim: 'silver', scallop: false, mannequin: 'white', finial: 'silver', sparkle: true } },
+  { name: 'Milliy atlas', v: { silhouette: 'empire', neckline: 'collar', sleeves: 'long', fabric: 'atlas', color: '#b0243a', lace: '#f4d58d', trim: 'gold', scallop: false, mannequin: 'linen', finial: 'gold', sparkle: false } },
+  { name: 'Kechki zumrad', v: { silhouette: 'mermaid', neckline: 'oneshoulder', sleeves: 'none', fabric: 'silk', color: '#1f6b55', lace: '#e9f3ee', trim: 'gold', scallop: false, mannequin: 'black', finial: 'gold', sparkle: true } },
+  { name: 'Qora baxmal', v: { silhouette: 'aline', neckline: 'strapless', sleeves: 'none', fabric: 'velvet', color: '#1d1a1f', lace: '#d9c7a3', trim: 'gold', scallop: false, mannequin: 'black', finial: 'wood', sparkle: false } },
+];
+
+async function viewGown() {
+  setTitle('3D ko‘ylak');
+  await loadSettings();
+  const cur = normalizeGown(S.settings.gown);
+  const opts = (k) => Object.entries(GOWN_OPTIONS[k]).map(([value, label]) => ({ value, label }));
+  const fields = [
+    { type: 'group', label: 'Bichim' },
+    { key: 'silhouette', label: 'Siluet', type: 'select', options: opts('silhouette') },
+    { key: 'neckline', label: 'Yoqa', type: 'select', options: opts('neckline') },
+    { key: 'sleeves', label: 'Yenglar', type: 'select', options: opts('sleeves'), help: 'Yenglar “shaffof to‘rli” va “yopiq yoqa” turlarida ko‘rinadi' },
+    { type: 'group', label: 'Mato va ranglar' },
+    { key: 'fabric', label: 'Mato', type: 'select', options: opts('fabric') },
+    { key: 'color', label: 'Ko‘ylak rangi', type: 'color' },
+    { key: 'lace', label: 'Dantel / naqsh rangi', type: 'color' },
+    { key: 'trim', label: 'Bel bezagi', type: 'select', options: opts('trim') },
+    { key: 'scallop', label: 'Chetlari to‘lqinsimon dantel', type: 'toggle', text: 'Ha' },
+    { type: 'group', label: 'Etak' },
+    { key: 'spread', label: 'Etakning polga yoyilishi', type: 'range', min: 0, max: 100, unit: '%', help: 'Etak faqat “A” harfi o‘rnida yoyiladi, qo‘shni harflarga tegmaydi' },
+    { key: 'train', label: 'Orqa shleyf uzunligi', type: 'range', min: 0, max: 100, unit: '%' },
+    { type: 'group', label: 'Maneken va effektlar' },
+    { key: 'mannequin', label: 'Maneken rangi', type: 'select', options: opts('mannequin') },
+    { key: 'finial', label: 'Tepadagi qopqoq', type: 'select', options: opts('finial') },
+    { key: 'sparkle', label: 'Yaltiroq uchqunlar', type: 'toggle', text: 'Yoqilgan' },
+    { key: 'motion', label: 'Yengil harakat (sichqonchaga ergashadi)', type: 'toggle', text: 'Yoqilgan' },
+  ];
+  let form = createForm(fields, cur);
+  const layout = h('div', { class: 'th-edit' });
+  const left = card('Bosh sahifadagi ko‘ylak', 'Ko‘ylak faqat shu yerdan sozlanadi — tashrif buyuruvchilar uni o‘zgartira olmaydi');
+  const body = left.querySelector('.a-card-body');
+  const presets = h('div', { class: 'gown-presets' }, `<span class="f-label">Tayyor uslublar</span><div>${GOWN_PRESETS.map((p, i) => `<button type="button" class="abtn abtn--ghost abtn--sm" data-p="${i}">${esc(p.name)}</button>`).join('')}</div>`);
+  const app0 = S.settings.appearance || {};
+  const hero0 = S.settings.hero || {};
+  const note = (app0.three_d === false || hero0.mode === 'image')
+    ? h('p', { class: 'f-help gown-note' }, `${icon('eye')} Hozir bosh sahifada 3D ko‘ylak o‘rniga rasm ko‘rsatilmoqda. Yoqish uchun: “Dizayn va mavzular” → “3D ko‘ylak (bosh sahifada)” va “Bosh sahifa” → rasm rejimi.`)
+    : null;
+  if (note) body.appendChild(note);
+  body.append(presets, form.el);
+  const right = h('div', { class: 'th-preview' }, `<div class="th-preview-bar"><span>${icon('eye')}Jonli ko‘rinish</span><div class="th-dev"><button type="button" class="is-active" data-w="100%">Kompyuter</button><button type="button" data-w="390px">Telefon</button></div></div><div class="th-frame-wrap"><iframe title="Ko‘rinish" src="/?preview=1"></iframe></div>`);
+  const iframe = right.querySelector('iframe');
+  const push = () => { try { iframe.contentWindow.postMessage({ type: 'ms-gown-preview', config: normalizeGown(form.getValues()) }, location.origin); } catch (e) { /* hali yuklanmagan */ } };
+  iframe.addEventListener('load', () => { setTimeout(push, 600); setTimeout(push, 2000); });
+  const onReady = (e) => { if (e.origin === location.origin && e.data && e.data.type === 'ms-preview-ready') { push(); setTimeout(push, 800); } };
+  window.addEventListener('message', onReady);
+  window.addEventListener('hashchange', () => window.removeEventListener('message', onReady), { once: true });
+  let tm;
+  const schedule = () => { clearTimeout(tm); tm = setTimeout(push, 90); };
+  const bindForm = () => {
+    form.el.addEventListener('input', schedule);
+    form.el.addEventListener('change', schedule);
+    markDirty(form.el);
+  };
+  bindForm();
+  const setValues = (v) => {
+    const next = createForm(fields, normalizeGown(v));
+    form.el.replaceWith(next.el);
+    form = next;
+    bindForm();
+    S.dirty = true;
+    push();
+  };
+  presets.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p]');
+    if (!b) return;
+    const p = GOWN_PRESETS[+b.dataset.p];
+    setValues({ ...form.getValues(), ...p.v });
+  });
+  right.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => {
+    right.querySelectorAll('[data-w]').forEach((x) => x.classList.toggle('is-active', x === b));
+    iframe.style.width = b.dataset.w;
+  }));
+  layout.append(left, right);
+  const bar = saveBar(async () => {
+    await saveSettings('gown', normalizeGown(form.getValues()));
+    ok('Ko‘ylak saqlandi — bosh sahifada shu ko‘rinish chiqadi');
+  }, `<button type="button" class="abtn abtn--ghost" data-reset>${icon('refresh')}Boshlang‘ich holat</button>`);
+  bar.querySelector('[data-reset]').addEventListener('click', () => setValues(GOWN_DEFAULTS));
+  const wrap = h('div', { class: 'a-stack' });
+  wrap.append(layout, bar);
+  content().innerHTML = '';
+  content().appendChild(wrap);
 }
 
 // ---------------- Sozlamalar ----------------
