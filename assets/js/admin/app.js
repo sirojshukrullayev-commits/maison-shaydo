@@ -7,6 +7,11 @@ import { DEFAULT_SETTINGS, PRESETS } from '../defaults.js';
 import { applyTheme, normalizeTokens, FONTS, PATTERNS } from '../theme.js';
 
 const S = { sb: null, user: null, settings: {}, themes: [], cats: [], dirty: false, unread: 0 };
+
+// Login nomi (masalan: maisonshaydo) ichki e-pochtaga aylantiriladi
+const LOGIN_DOMAIN = 'maison-shaydo.vercel.app';
+const loginToEmail = (v) => { const x = String(v || '').trim().toLowerCase(); return x.includes('@') ? x : `${x}@${LOGIN_DOMAIN}`; };
+const loginName = (email) => String(email || '').replace(`@${LOGIN_DOMAIN}`, '');
 const app = document.getElementById('admin');
 
 // ---------------- Yordamchilar ----------------
@@ -77,8 +82,8 @@ function renderLogin(msg = '') {
     <form class="login-card" novalidate>
       <div class="login-brand">${icon('star')}<span>${esc(S.settings.general?.site_name || 'Maison Shaydo')}</span></div>
       <h1>Admin panelga kirish</h1>
-      <p class="muted">Saytni boshqarish uchun e-pochta va parolingizni kiriting.</p>
-      <label class="f-row"><span class="f-label">E-pochta</span><input class="inp" type="email" name="email" autocomplete="username" required></label>
+      <p class="muted">Saytni boshqarish uchun login va parolingizni kiriting.</p>
+      <label class="f-row"><span class="f-label">Login</span><input class="inp" type="text" name="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="maisonshaydo" required></label>
       <label class="f-row"><span class="f-label">Parol</span><span class="pw-wrap"><input class="inp" type="password" name="password" autocomplete="current-password" required><button type="button" class="icon-btn" data-pw aria-label="Parolni ko‘rsatish">${icon('eye')}</button></span></label>
       <p class="login-err" role="alert">${esc(msg)}</p>
       <button class="abtn abtn--block" type="submit">${icon('arrowRight')}Kirish</button>
@@ -94,8 +99,9 @@ function renderLogin(msg = '') {
     e.preventDefault();
     const err = form.querySelector('.login-err');
     err.textContent = '';
-    const email = form.email.value.trim(); const password = pw.value;
-    if (!email || !password) { err.textContent = 'E-pochta va parolni kiriting'; return; }
+    const login = form.email.value.trim(); const password = pw.value;
+    if (!login || !password) { err.textContent = 'Login va parolni kiriting'; return; }
+    const email = loginToEmail(login);
     const btn = form.querySelector('button[type=submit]');
     btn.disabled = true; btn.innerHTML = '<span class="spinner spinner--sm"></span>Tekshirilmoqda…';
     try {
@@ -153,7 +159,7 @@ function renderShell() {
     </aside>
     <div class="a-scrim" id="a-scrim"></div>
     <div class="a-main">
-      <header class="a-top"><button type="button" class="icon-btn a-burger" id="a-burger" aria-label="Menyu">${icon('menu')}</button><h1 id="a-title"></h1><span class="a-user">${icon('user')}${esc(S.user?.email || '')}</span></header>
+      <header class="a-top"><button type="button" class="icon-btn a-burger" id="a-burger" aria-label="Menyu">${icon('menu')}</button><h1 id="a-title"></h1><span class="a-user">${icon('user')}${esc(loginName(S.user?.email))}</span></header>
       <div class="a-content" id="a-content"></div>
     </div></div>`;
   document.getElementById('logout').addEventListener('click', async () => {
@@ -894,7 +900,7 @@ async function viewSettings() {
   c1.querySelector('.a-card-body').appendChild(f1.el);
   c1.appendChild(saveBar(async () => { if (!f1.validate()) return false; await saveSettings('general', f1.getValues()); ok('Saqlandi'); }));
 
-  const c2 = card('Parolni o‘zgartirish', `Kirish: ${esc(S.user?.email || '')}`);
+  const c2 = card('Parolni o‘zgartirish', `Login: ${esc(loginName(S.user?.email))}`);
   const f2 = createForm([
     { key: 'p1', label: 'Yangi parol (kamida 8 belgi)', type: 'text', inputType: 'password' },
     { key: 'p2', label: 'Yangi parolni takrorlang', type: 'text', inputType: 'password' },

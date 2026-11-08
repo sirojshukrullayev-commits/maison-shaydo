@@ -15,7 +15,7 @@ export async function getClient() {
 export function errMsg(e) {
   if (!e) return 'Noma’lum xato';
   const m = e.message || String(e);
-  if (/Invalid login credentials/i.test(m)) return 'E-pochta yoki parol noto‘g‘ri';
+  if (/Invalid login credentials/i.test(m)) return 'Login yoki parol noto‘g‘ri';
   if (/row-level security|permission denied|not authorized/i.test(m)) return 'Ruxsat yo‘q: bu amal faqat admin uchun';
   if (/duplicate key/i.test(m)) return 'Bunday qiymat (masalan, slug) allaqachon mavjud';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Internet aloqasi yo‘q yoki server javob bermadi';
