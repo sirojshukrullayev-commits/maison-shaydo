@@ -11,7 +11,10 @@ PRELOADER = """<div id="preloader" class="preloader" aria-hidden="true"><div cla
   <div class="preloader-name"><span id="pl-name">Maison Shaydo</span></div><div class="preloader-bar"></div></div></div>
 <script>(function(){try{if(sessionStorage.getItem('ms_seen')==='1'){var p=document.getElementById('preloader');p&&p.remove();return;}var s=JSON.parse(localStorage.getItem('ms_cache_v1:site')||'null');var n=s&&s.data&&s.data.settings&&s.data.settings.general&&s.data.settings.general.site_name;if(n)document.getElementById('pl-name').textContent=n;}catch(e){}})();</script>"""
 
-def page(name, script, body_cls='', title_key='', preloader=True):
+# Bosh sahifadagi 3D ko'ylak uchun three.js oldindan yuklanadi
+PRELOAD_3D = '<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" crossorigin>'
+
+def page(name, script, body_cls='', title_key='', preloader=True, preload_3d=False):
     html = f"""<!doctype html>
 <html lang="uz">
 <head>
@@ -32,6 +35,7 @@ def page(name, script, body_cls='', title_key='', preloader=True):
 {IMPORTMAP}
 <link rel="stylesheet" href="/assets/css/main.css">
 <script type="module" src="/assets/js/pages/{script}.js"></script>
+{PRELOAD_3D if preload_3d else ''}
 </head>
 <body class="{body_cls}" data-title="{title_key}">
 {PRELOADER if preloader else ''}
@@ -46,7 +50,7 @@ def page(name, script, body_cls='', title_key='', preloader=True):
     with open(os.path.join(ROOT, name), 'w') as f:
         f.write(html)
 
-page('index.html', 'home', 'has-hero', '')
+page('index.html', 'home', 'has-hero', '', preload_3d=True)
 page('about.html', 'about', 'has-hero', 'nav_about')
 page('projects.html', 'projects', 'has-hero', 'nav_projects')
 page('project.html', 'project', '', 'nav_projects', preloader=False)

@@ -136,12 +136,25 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// Footerdagi katta yozuv har qanday nom uzunligida ekranga sig'adi
+function fitFooterMark() {
+  const m = document.querySelector('.footer-mark');
+  if (!m) return;
+  m.style.fontSize = '';
+  const sw = m.scrollWidth; const cw = m.clientWidth;
+  if (cw && sw > cw) m.style.fontSize = `${(parseFloat(getComputedStyle(m).fontSize) * cw) / sw * 0.97}px`;
+}
+let fitTimer = 0;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitFooterMark, 150); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitFooterMark);
+
 function renderChrome() {
   const site = state.site;
   const header = $('#site-header');
   header.innerHTML = headerHtml(site);
   $('#mobile-menu').innerHTML = mobileMenuHtml(site);
   $('#site-footer').innerHTML = footerHtml(site);
+  fitFooterMark();
   bindHeader();
   const g = site.settings.general;
   const pageTitle = document.body.dataset.title ? t(document.body.dataset.title) : '';

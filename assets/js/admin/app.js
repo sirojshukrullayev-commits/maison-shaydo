@@ -16,7 +16,13 @@ const loginName = (email) => String(email || '').replace(`@${LOGIN_DOMAIN}`, '')
 const app = document.getElementById('admin');
 
 // ---------------- Yordamchilar ----------------
-const fmtDate = (d) => { try { return new Date(d).toLocaleString('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return d; } };
+// Sana: 07.11.2026, 15:00 (brauzer tilidan qat'i nazar bir xil)
+const fmtDate = (d) => {
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return d || '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(x.getDate())}.${p(x.getMonth() + 1)}.${x.getFullYear()}, ${p(x.getHours())}:${p(x.getMinutes())}`;
+};
 const ok = (m) => toast(m, 'success');
 const fail = (e) => toast(errMsg(e), 'error', 4500);
 
@@ -915,7 +921,7 @@ async function viewGown() {
     { key: 'scallop', label: 'Chetlari to‘lqinsimon dantel', type: 'toggle', text: 'Ha' },
     { type: 'group', label: 'Etak' },
     { key: 'spread', label: 'Etakning polga yoyilishi', type: 'range', min: 0, max: 100, unit: '%', help: 'Etak faqat “A” harfi o‘rnida yoyiladi, qo‘shni harflarga tegmaydi' },
-    { key: 'train', label: 'Orqa shleyf uzunligi', type: 'range', min: 0, max: 100, unit: '%' },
+    { key: 'train', label: 'Orqa shleyf uzunligi', type: 'range', min: 0, max: 100, unit: '%', help: 'Aylanish yoqilganda shleyf harflarga chiqmasligi uchun qisqaroq bo‘ladi' },
     { type: 'group', label: 'O‘lcham' },
     { key: 'size', label: 'Ko‘ylak bo‘yi', type: 'range', min: 0, max: 100, unit: '%', help: '0% — “A” harfi balandligicha, 100% — eng baland' },
     { key: 'width', label: 'Etak kengligi', type: 'range', min: 0, max: 100, unit: '%', help: 'Kichik qiymat — ingichka, katta — keng (har doim “A” harfi joyida)' },
@@ -923,7 +929,8 @@ async function viewGown() {
     { key: 'mannequin', label: 'Maneken rangi', type: 'select', options: opts('mannequin') },
     { key: 'finial', label: 'Tepadagi qopqoq', type: 'select', options: opts('finial') },
     { key: 'sparkle', label: 'Yaltiroq uchqunlar', type: 'toggle', text: 'Yoqilgan' },
-    { key: 'motion', label: 'Yengil harakat (sichqonchaga ergashadi)', type: 'toggle', text: 'Yoqilgan' },
+    { key: 'motion', label: '3D aylanish', type: 'toggle', text: 'Yoqilgan', help: 'Ko‘ylak sekin aylanib turadi; sichqoncha yoki barmoq bilan ham aylantirish mumkin' },
+    { key: 'speed', label: 'Aylanish tezligi', type: 'range', min: 0, max: 100, unit: '%' },
   ];
   let form = createForm(fields, cur);
   const layout = h('div', { class: 'th-edit' });

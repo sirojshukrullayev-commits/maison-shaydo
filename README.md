@@ -12,7 +12,7 @@ Tikuvchi-dizayner loyihalari, u haqidagi ma'lumotlar, ilmiy ishlar va yutuqlarni
 **Ommaviy sahifalar:** bosh sahifa, dizayner haqida, loyihalar (portfolio), har bir loyihaning alohida sahifasi, ilmiy ishlar, aloqa.
 
 - 3 til: o'zbek, rus, ingliz. Foydalanuvchi tanlagan til eslab qolinadi.
-- Bosh sahifada 3D maneken (three.js): sichqoncha yoki barmoq bilan aylantiriladi, libos matosi va ranglari tanlangan mavzuga moslashadi.
+- Bosh sahifada "SHAYDO" so'zidagi "A" harfi o'rnida 3D ko'ylak (three.js): sekin aylanib turadi, sichqoncha yoki barmoq bilan ham aylantiriladi. Ko'rinishi faqat admin paneldagi "3D ko'ylak" bo'limidan sozlanadi.
 - Loyiha sahifasida "3D'da ko'rish": loyiha matosi 3D libosga kiydiriladi.
 - Animatsiyalar: harflarning paydo bo'lishi, kartalarning 3D egilishi, parallaks, magnit tugmalar, maxsus kursor, sahifalar orasidagi o'tish.
 - Loyihalarni toifa, yil va qidiruv bo'yicha saralash; rasmlarni to'liq ekranda ko'rish.
@@ -24,7 +24,10 @@ Tikuvchi-dizayner loyihalari, u haqidagi ma'lumotlar, ilmiy ishlar va yutuqlarni
 - Har bir matn UZ / RU / EN yorliqlarida kiritiladi. Tarjima bo'sh bo'lsa, o'zbekcha matn ko'rsatiladi.
 - Rasm muharriri: asl rasm, fonni olib tashlash (AI yoki oddiy usul), istalgan fon rangi yoki gradient, kiyimni 3D manekenga joylash.
 - Dizayn va mavzular: 5 ta tayyor mavzu (Zamonaviy, Milliy, Klassik, Minimal, Pastel), har birining ranglari, shriftlari, naqshi va 3D libosini o'zgartirish, yangi mavzu yaratish, jonli ko'rinish.
+- 3D ko'ylak: siluet, yoqa, yenglar, mato, ranglar, bel bezagi, dantel chetlari, bo'yi, etak kengligi, aylanish va tezligi; 5 ta tayyor uslub va jonli ko'rinish.
 - Animatsiya, 3D va kursor effektlarini yoqish/o'chirish.
+
+**Admin panelga kirish:** login `maisonshaydo` va parol. Parolni "Sozlamalar" bo'limidan almashtirish mumkin.
 
 ## Tuzilma
 
@@ -37,7 +40,9 @@ assets/js/i18n.js            interfeys tarjimalari
 assets/js/theme.js           mavzu tizimi (ranglar, shriftlar, naqshlar)
 assets/js/layout.js          header, footer, til tanlagich, preloader
 assets/js/anim.js            animatsiyalar
-assets/js/three/mannequin.js 3D maneken va libos
+assets/js/three/mannequin.js 3D maneken va libos (loyiha sahifasi)
+assets/js/three/gown.js      bosh sahifadagi 3D ko'ylak
+assets/js/gown-config.js     3D ko'ylak sozlamalari (standart qiymatlar)
 assets/js/pages/*.js         har bir sahifa skripti
 assets/js/admin/*.js         admin panel, forma quruvchi, rasm muharriri
 supabase/migrations/*.sql    baza sxemasi va xavfsizlik qoidalari (RLS)

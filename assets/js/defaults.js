@@ -364,6 +364,7 @@ export const DEFAULT_SETTINGS = {
   "train": 40,
   "size": 25,
   "width": 45,
+  "speed": 40,
   "mannequin": "linen",
   "finial": "silver",
   "sparkle": false,

@@ -80,6 +80,7 @@ export function close() {
   if (!box) return;
   box.classList.remove('is-open');
   document.documentElement.classList.remove('lb-open');
-  setTimeout(() => { box.hidden = true; }, 300);
+  // Yopilgandan keyin ko'rinmas qatlam sahifani to'sib qolmasligi uchun butunlay yashiriladi
+  setTimeout(() => { if (!box.classList.contains('is-open')) box.hidden = true; }, 300);
   if (lastFocus && lastFocus.focus) lastFocus.focus();
 }

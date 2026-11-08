@@ -12,6 +12,7 @@ export const GOWN_DEFAULTS = {
   train: 40,
   size: 25,
   width: 45,
+  speed: 40,
   mannequin: 'linen',
   finial: 'silver',
   sparkle: false,
@@ -39,6 +40,7 @@ export function normalizeGown(c) {
   const pct = (v, d) => Math.max(0, Math.min(100, Number.isFinite(+v) && v !== '' && v !== null ? +v : d));
   o.size = pct(o.size, GOWN_DEFAULTS.size);
   o.width = pct(o.width, GOWN_DEFAULTS.width);
+  o.speed = pct(o.speed, GOWN_DEFAULTS.speed);
   o.scallop = !!o.scallop; o.sparkle = !!o.sparkle; o.motion = o.motion !== false;
   return o;
 }

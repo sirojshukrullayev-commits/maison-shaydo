@@ -32,7 +32,20 @@ export const TORSO_PTS = [
 const torsoCurve = new THREE.SplineCurve(TORSO_PTS.map(([r, y]) => new THREE.Vector2(r, y)));
 export const TORSO_SAMPLES = torsoCurve.getPoints(120);
 
+// Tez hisoblash uchun oldindan tayyorlangan jadval (har bir uchburchak nuqtasi uchun qayta qidirmaslik)
+const R_N = 1536; const R_Y1 = 0.752;
+let rLut = null;
 export function torsoR(y) {
+  if (y < 0 || y > R_Y1) return torsoRExact(y);
+  if (!rLut) {
+    rLut = new Float32Array(R_N + 1);
+    for (let i = 0; i <= R_N; i++) rLut[i] = torsoRExact((R_Y1 * i) / R_N);
+  }
+  const f = (y / R_Y1) * R_N; const i = Math.min(R_N - 1, Math.floor(f)); const t = f - i;
+  return rLut[i] * (1 - t) + rLut[i + 1] * t;
+}
+
+function torsoRExact(y) {
   // Profil bo'yicha radiusni chiziqli interpolyatsiya (faqat tananing yon qismi)
   let best = 0;
   for (let i = 1; i < TORSO_SAMPLES.length - 1; i++) {

@@ -38,7 +38,6 @@ const SIL = {
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
-const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
 // ---------- Dantel naqshi (choksiz takrorlanadigan) ----------
 function laceMotifs() {
@@ -355,7 +354,7 @@ export function createGown(container, opts = {}) {
   scene.add(points);
 
   // ----- Shakl -----
-  const L = { rA: 0.5, aX: 0.6, bF: 0.7, bB: 0.45, unfurl: 0 };
+  const L = { rA: 0.5, aX: 0.6, bF: 0.7, bB: 0.45, unfurl: 1 };
   const phase = [0.4, 2.1, 4.3, 1.2];
   let S = SIL.aline;
 
@@ -419,7 +418,7 @@ export function createGown(container, opts = {}) {
     const x0 = sn * rEnd * sxA; const z0 = cs * rEnd * szA;
     const spread = (C.spread / 100) * L.unfurl;
     const ax = L.aX;
-    const trainBack = L.bB + (L.bB * 2.2) * (C.train / 100);
+    const trainBack = o.animate ? L.bB + (L.aX - L.bB) * (C.train / 100) : L.bB + (L.bB * 2.2) * (C.train / 100);
     const bz = lerp(trainBack, L.bF, smooth(-0.35, 0.35, cs));
     const aE = rEnd + (Math.max(ax, rEnd) - rEnd) * spread;
     const bE = rEnd + (Math.max(bz, rEnd) - rEnd) * spread;
@@ -482,7 +481,7 @@ export function createGown(container, opts = {}) {
     // Soya o'lchami etak bilan birga o'zgaradi
     const sp = (C.spread / 100) * L.unfurl;
     const ax = L.rA + (L.aX - L.rA) * sp;
-    const back = L.bB + L.bB * 2.2 * (C.train / 100);
+    const back = o.animate ? L.bB + (L.aX - L.bB) * (C.train / 100) : L.bB + L.bB * 2.2 * (C.train / 100);
     const bz = L.rA + (Math.max(L.bF, back) - L.rA) * sp;
     shadow.scale.set(ax * 1.12, bz * 1.12, 1);
     dressGeo.attributes.position.needsUpdate = true;
@@ -652,7 +651,9 @@ export function createGown(container, opts = {}) {
   }
 
   // ----- Kamera: so'zdagi harflarga moslash -----
-  let W = 1; let H = 1; let lay = null; let layoutReady = false; let unfurlStart = 0;
+  let W = 1; let H = 1; let lay = null; let layoutReady = false;
+  let box = null;
+  const spinning = () => !!(o.animate && C.motion);
   const vtmp = new THREE.Vector3();
   const ray = new THREE.Raycaster();
   const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR);
@@ -712,16 +713,19 @@ export function createGown(container, opts = {}) {
     L.aX = Math.max(L.rA * (1 + HEM_FLARE) + 0.01, Math.min(hw - 0.04, L.rA * 1.2));
     L.bF = L.rA * 1.45;
     L.bB = L.rA * 1.1;
+    // Ko'ylak aylanganda etak yon tomonga — harflar ustiga chiqmasligi uchun aylana ichida qoladi
+    if (o.animate) { L.bF = Math.min(L.bF, L.aX); L.bB = Math.min(L.bB, L.aX * 0.62); }
+    // Ko'ylak egallagan ekran sohasi (sichqoncha bilan aylantirish uchun)
+    const t = proj(0, TOPY, 0); const b = proj(0, FLOOR, 0);
+    const half = Math.abs(proj(L.aX, FLOOR, 0)[0] - b[0]);
+    box = { x0: b[0] - half, x1: b[0] + half, y0: t[1], y1: b[1] + 20 };
   }
 
   function setLayout(l) {
     lay = l;
     solve();
-    if (!layoutReady) {
-      layoutReady = true;
-      unfurlStart = performance.now() + (o.animate ? 400 : -10000);
-    }
     rebuild();
+    if (!layoutReady) { layoutReady = true; reveal(); }
   }
 
   function rebuild() { S = SIL[C.silhouette] || SIL.aline; updateDress(); updateParts(); needs = true; }
@@ -730,40 +734,95 @@ export function createGown(container, opts = {}) {
   let matSig = '';
   function setConfig(c) {
     C = normalizeGown(c);
+    if (!spinning() && !dragging) { rotY = 0; vel = 0; root.rotation.y = 0; }
     const sig = MAT_KEYS.map((k) => C[k]).join('|');
     if (sig !== matSig) applyMaterials();
     solve();
     rebuild();
   }
 
-  // ----- Animatsiya -----
-  let mx = 0; let rotY = 0; let time = 0;
-  const onMove = (e) => { mx = (e.clientX / window.innerWidth - 0.5) * 2; };
+  // ----- Animatsiya: 3D aylanish -----
+  // Avtomatik aylanadi; sichqoncha yoki barmoq bilan ko'ylakni ushlab aylantirish mumkin.
+  let rotY = 0; let vel = 0; let dragging = false; let dragX = 0; let lastDragT = 0; let resumeAt = 0;
+  const period = () => 30 - 24 * (C.speed / 100); // bir marta to'liq aylanish (soniya)
+  const inBox = (e) => {
+    if (!box) return false;
+    const r = container.getBoundingClientRect();
+    const x = e.clientX - r.left; const y = e.clientY - r.top;
+    return x >= box.x0 && x <= box.x1 && y >= box.y0 && y <= box.y1;
+  };
+  const host = container.closest('.hero') || container.parentElement || container;
+  const onDown = (e) => {
+    if (!o.animate || e.button > 0 || !inBox(e) || e.target.closest('a, button, input, select, textarea')) return;
+    dragging = true; dragX = e.clientX; lastDragT = performance.now(); vel = 0;
+    host.classList.add('is-spinning');
+  };
+  const onMove = (e) => {
+    if (dragging) {
+      const now = performance.now();
+      const d = (e.clientX - dragX) * 0.011;
+      dragX = e.clientX;
+      rotY += d; root.rotation.y = rotY; needs = true;
+      vel = d / Math.max(0.008, (now - lastDragT) / 1000);
+      lastDragT = now;
+    } else if (e.pointerType === 'mouse') {
+      const can = o.animate && inBox(e);
+      if (can !== host.classList.contains('can-spin')) {
+        host.classList.toggle('can-spin', can);
+        document.documentElement.classList.toggle('cursor-spin', can);
+      }
+    }
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false; resumeAt = performance.now() + 1200;
+    host.classList.remove('is-spinning');
+  };
+  host.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove, { passive: true });
-  let raf = 0; let visible = true; let needs = true; let last = performance.now(); let lastRender = 0;
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+
+  let raf = 0; let visible = true; let needs = true; let last = performance.now();
+  // Kuchsiz qurilmalarda piksel zichligi avtomatik kamaytiriladi
+  let slowFrames = 0; let fastFrames = 0; let dpr = renderer.getPixelRatio();
+  function adapt(dt) {
+    if (dt > 0.034) { slowFrames++; fastFrames = 0; } else { fastFrames++; if (fastFrames > 240) slowFrames = 0; }
+    if (slowFrames > 45 && dpr > 1) {
+      dpr = Math.max(1, dpr - 0.35); slowFrames = 0;
+      renderer.setPixelRatio(dpr); renderer.setSize(W, H, false);
+    }
+  }
   function frame(now) {
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (!visible || document.hidden) return;
+    if (!visible || document.hidden || !compiled) return;
     let dirty = needs;
-    if (layoutReady && L.unfurl < 1) {
-      L.unfurl = easeOut(Math.min(1, Math.max(0, (now - unfurlStart) / 2200)));
-      updateDress();
-      dirty = true;
+    if (spinning() && !dragging) {
+      const auto = (Math.PI * 2) / period();
+      // Qo'yib yuborilgandan keyin inersiya bilan sekinlashib, yana o'z tezligiga qaytadi
+      vel *= Math.pow(0.04, dt);
+      const w = now < resumeAt ? vel : vel + auto * Math.min(1, (now - resumeAt) / 1500 + (Math.abs(vel) < 0.05 ? 1 : 0));
+      rotY += w * dt; root.rotation.y = rotY; dirty = true;
+    } else if (!spinning() && !dragging && rotY !== 0) {
+      // Aylanish o'chirilgan bo'lsa, qo'yib yuborilgach ko'ylak asta-sekin oldi tomoniga qaytadi
+      vel *= Math.pow(0.04, dt); rotY += vel * dt;
+      if (now > resumeAt) {
+        const target = Math.round(rotY / (Math.PI * 2)) * Math.PI * 2;
+        rotY += (target - rotY) * Math.min(1, dt * 2.5);
+        if (Math.abs(target - rotY) < 1e-3 && Math.abs(vel) < 0.01) { rotY = 0; vel = 0; }
+      }
+      root.rotation.y = rotY; dirty = true;
     }
-    if (o.animate && C.motion) {
-      time += dt;
-      const target = mx * 0.06 + Math.sin(time * 0.3) * 0.035;
-      const nr = rotY + (target - rotY) * 0.04;
-      if (Math.abs(nr - rotY) > 1e-5) { rotY = nr; root.rotation.y = rotY; dirty = true; }
-    } else if (rotY !== 0) { rotY = 0; root.rotation.y = 0; dirty = true; }
     if (points.visible && o.animate) {
       const pa = points.geometry.attributes.position;
       for (let i = 0; i < NP; i++) { let y = pa.getY(i) + dt * pseed[i]; if (y > 1.2) y = -1; pa.setY(i, y); }
-      pa.needsUpdate = true; points.rotation.y += dt * 0.04; dirty = true;
+      pa.needsUpdate = true; points.rotation.y -= dt * 0.04; dirty = true;
     }
-    // Yengil tebranish uchun ~30 kadr/s yetarli — protsessorni tejaydi
-    if (dirty && (needs || L.unfurl < 1 || now - lastRender > 32)) { renderer.render(scene, camera); needs = false; lastRender = now; }
+    if (dirty) {
+      renderer.render(scene, camera); needs = false;
+      if (spinning()) adapt(dt);
+    }
   }
 
   const io = 'IntersectionObserver' in window ? new IntersectionObserver((en) => { visible = en[0].isIntersecting; }, { threshold: 0.01 }) : null;
@@ -775,6 +834,16 @@ export function createGown(container, opts = {}) {
   setTokens(tokens);
   applyMaterials();
   rebuild();
+  // Sheyderlar fon rejimida kompilyatsiya qilinadi — sahifa qotib qolmaydi
+  let compiled = false;
+  function reveal() {
+    if (!compiled || !layoutReady || cnv.classList.contains('is-ready')) return;
+    renderer.render(scene, camera); needs = false;
+    // Birinchi kadr tayyor bo'lgach ko'ylak yumshoq paydo bo'ladi
+    requestAnimationFrame(() => cnv.classList.add('is-ready'));
+  }
+  const done = () => { compiled = true; needs = true; reveal(); };
+  if (renderer.compileAsync && renderer.extensions.has('KHR_parallel_shader_compile')) renderer.compileAsync(scene, camera).then(done, done); else done();
   raf = requestAnimationFrame(frame);
   container.classList.add('has-3d', 'is-gown');
 
@@ -784,11 +853,15 @@ export function createGown(container, opts = {}) {
     setConfig,
     setTokens,
     getConfig: () => ({ ...C }),
-    _debug: { scene, camera, renderer, border, dress },
     dispose() {
       cancelAnimationFrame(raf);
       io && io.disconnect(); ro && ro.disconnect();
       window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      host.removeEventListener('pointerdown', onDown);
+      host.classList.remove('can-spin', 'is-spinning');
+      document.documentElement.classList.remove('cursor-spin');
       texs.forEach((t) => t.dispose());
       disposables.forEach((d) => d.dispose && d.dispose());
       envRT.dispose(); pmrem.dispose(); renderer.dispose();

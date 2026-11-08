@@ -9,6 +9,7 @@ import { workCard } from '../components.js';
 import { normalizeGown } from '../gown-config.js';
 
 let gown = null;
+let slotImg = null;
 let figureMode = '';
 
 function heroTextHtml(s, counts) {
@@ -94,17 +95,26 @@ function fitWord() {
 // Ko'ylak turadigan "A" harfini yashirish (unga keng joy ajratiladi)
 function markDressLetter() {
   const chars = Array.from(document.querySelectorAll('#hero-text .hero-word .ch'));
-  const ai = gown ? chars.findIndex((c) => /[aAаА]/.test(c.textContent)) : -1;
+  const ai = gown || slotImg ? chars.findIndex((c) => /[aAаА]/.test(c.textContent)) : -1;
   chars.forEach((c, i) => c.classList.toggle('is-dress-letter', i === ai));
 }
 
 function syncGown() {
   markDressLetter();
   fitWord();
-  if (!gown) return;
+  if (!gown && !slotImg) return;
   const l = measureWord();
   if (!l) return;
-  gown.setLayout(l);
+  if (gown) { gown.setLayout(l); return; }
+  // 3D bo'lmasa: ko'ylak rasmi "A" harfi o'rnida turadi
+  const ratio = slotImg.naturalWidth ? slotImg.naturalHeight / slotImg.naturalWidth : 2.08;
+  let w = l.letterW * (slotImg.dataset.kind === 'gown' ? 0.98 : 1.1);
+  let h = w * ratio;
+  const maxH = Math.max(80, l.baselinePx - l.minTop);
+  if (h > maxH) { h = maxH; w = h / ratio; }
+  const baseFrac = slotImg.dataset.kind === 'gown' ? 0.891 : 0.97;
+  Object.assign(slotImg.style, { left: `${l.aPx - w / 2}px`, top: `${l.baselinePx - h * baseFrac}px`, width: `${w}px`, height: `${h}px` });
+  slotImg.classList.add('is-placed');
 }
 
 let syncTimer = 0;
@@ -115,13 +125,20 @@ async function setupFigure(site) {
   const hero = site.settings.hero || {};
   const app = site.settings.appearance || {};
   const img = safeUrl(hero.image_url);
-  const fallback = () => {
+  // Rasm "A" harfi o'rnida joylashadi (3D o'chirilgan yoki brauzer WebGL'ni qo'llamasa)
+  const useSlotImage = (src, alt, kind) => {
     figureMode = 'image';
-    fig.innerHTML = `<img class="hero-cutout" src="/assets/img/hero-fallback.svg" alt="">`;
+    fig.innerHTML = `<img class="hero-slot-img" data-kind="${kind}" src="${esc(src)}" alt="${esc(alt)}" decoding="async">`;
+    slotImg = fig.querySelector('img');
+    slotImg.addEventListener('load', () => scheduleSync(0));
+    fig.classList.add('is-in');
+    window.addEventListener('resize', () => scheduleSync(150));
+    if (document.fonts) document.fonts.ready.then(() => scheduleSync(30));
+    scheduleSync(0);
   };
+  const fallback = () => useSlotImage('/assets/img/hero-gown.webp', '', 'gown');
   if (hero.mode === 'image' && img) {
-    figureMode = 'image';
-    fig.innerHTML = `<img class="hero-cutout" src="${esc(img)}" alt="${esc(tr(site.settings.about.name))}">`;
+    useSlotImage(img, tr(site.settings.about.name), 'custom');
     return;
   }
   if (app.three_d === false) { fallback(); return; }
