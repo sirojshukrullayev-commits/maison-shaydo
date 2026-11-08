@@ -51,7 +51,7 @@ async function setupFigure(site) {
     const mod = await import('../three/mannequin.js');
     if (!mod.webglAvailable()) throw new Error('webgl');
     mannequin = mod.createMannequin(fig, {
-      tokens: getTokens(), fit: window.innerWidth < 700 ? 0.8 : 0.9, offsetY: window.innerWidth < 700 ? -0.12 : 0,
+      tokens: getTokens(), fit: window.innerWidth < 700 ? 0.66 : 0.9, offsetY: window.innerWidth < 700 ? -0.08 : 0,
       animate: true, autoRotate: animationsEnabled(), parallax: !isTouch(), particles: true,
     });
     fig.classList.add('is-in');
@@ -190,6 +190,10 @@ async function render({ site, first }) {
   // So'z animatsiyasi ketma-ket bo'lishi uchun harflar orasidagi kechikish
   const wordEl = textLayer.querySelector('.hero-word-inner');
   if (wordEl) wordEl.style.setProperty('--d', '0.15s');
+  // Hero birinchi ekranda turadi: kuzatuvchini kutmasdan darhol animatsiyani boshlash
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    textLayer.querySelectorAll('[data-reveal], [data-split]').forEach((el) => el.classList.add('is-in'));
+  }));
   document.getElementById('home-sections').innerHTML = sectionsHtml(s, { cats, projects, research });
 }
 

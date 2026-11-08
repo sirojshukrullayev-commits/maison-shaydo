@@ -260,6 +260,7 @@ body { animation: pageIn 0.7s var(--ease) both; }
 .hero-intro { position: absolute; z-index: 4; left: calc(max(0px, (100vw - var(--maxw)) / 2) + var(--pad) - 10px); top: calc(var(--header-h) + 6vh); max-width: 300px; }
 .hero-intro .eyebrow { color: var(--c-hero-text); font-size: 11px; }
 .hero-intro h1 { font-size: clamp(24px, 2.4vw, 34px); margin: 14px 0 22px; }
+.hero-intro, .hero-side { text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35); }
 .hero-side { position: absolute; z-index: 4; right: calc(max(0px, (100vw - var(--maxw)) / 2) + var(--pad) - 10px); top: 50%; max-width: 170px; font-family: var(--font-h); font-style: italic; font-size: 15px; line-height: 1.5; opacity: 0.9; }
 .hero-side::before { content: ''; display: block; width: 40px; height: 1px; background: currentColor; margin-bottom: 14px; opacity: 0.6; }
 .hero-hint { position: absolute; z-index: 4; right: calc(max(0px, (100vw - var(--maxw)) / 2) + var(--pad) - 10px); bottom: 150px; display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.75; }

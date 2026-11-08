@@ -22,7 +22,7 @@ def page(name, script, body_cls='', title_key='', preloader=True):
 <meta name="theme-color" content="#4f3a2c">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Maison Shaydo">
-<meta property="og:image" content="/assets/img/og.png">
+<meta property="og:image" content="/assets/img/og.jpg">
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
