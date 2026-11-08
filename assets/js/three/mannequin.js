@@ -10,11 +10,11 @@ export function webglAvailable() {
 }
 
 // ---------- Yordamchilar ----------
-function seeded(seed) {
+export function seeded(seed) {
   let s = seed >>> 0;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
-function hex(c, f = 0) {
+export function hex(c, f = 0) {
   const col = new THREE.Color(c);
   if (f > 0) col.lerp(new THREE.Color('#ffffff'), f);
   if (f < 0) col.lerp(new THREE.Color('#000000'), -f);
@@ -24,15 +24,15 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
 function bump(y, a, b) { if (y <= a || y >= b) return 0; return Math.sin(Math.PI * (y - a) / (b - a)); }
 
 // Maneken tanasi profili (radius, balandlik), pastdan tepaga
-const TORSO_PTS = [
+export const TORSO_PTS = [
   [0.0, 0.0], [0.23, 0.0], [0.25, 0.02], [0.262, 0.08], [0.255, 0.15], [0.225, 0.24], [0.2, 0.3],
   [0.212, 0.36], [0.24, 0.43], [0.238, 0.48], [0.222, 0.53], [0.205, 0.565], [0.18, 0.6],
   [0.12, 0.63], [0.07, 0.65], [0.058, 0.68], [0.056, 0.74], [0.07, 0.75], [0.0, 0.752],
 ];
 const torsoCurve = new THREE.SplineCurve(TORSO_PTS.map(([r, y]) => new THREE.Vector2(r, y)));
-const TORSO_SAMPLES = torsoCurve.getPoints(120);
+export const TORSO_SAMPLES = torsoCurve.getPoints(120);
 
-function torsoR(y) {
+export function torsoR(y) {
   // Profil bo'yicha radiusni chiziqli interpolyatsiya (faqat tananing yon qismi)
   let best = 0;
   for (let i = 1; i < TORSO_SAMPLES.length - 1; i++) {
@@ -46,7 +46,7 @@ function torsoR(y) {
 }
 
 // Tana shaklini ovallashtirish va yelkalarni kengaytirish
-function bodyScale(y) {
+export function bodyScale(y) {
   const sh = bump(y, 0.47, 0.645);
   const below = smooth(0.1, -0.7, y); // etakda yumaloqlashadi
   const sx = (1.18 * (1 + 0.3 * sh)) * (1 - below) + 1.0 * below;
@@ -54,7 +54,7 @@ function bodyScale(y) {
   return [sx, sz];
 }
 
-function deformBody(geo) {
+export function deformBody(geo) {
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const y = p.getY(i);
@@ -178,7 +178,7 @@ export function fabricCanvas(kind, colors) {
   return cv;
 }
 
-function weaveCanvas(color) {
+export function weaveCanvas(color) {
   const cv = makeCanvas(256);
   const g = cv.getContext('2d');
   g.fillStyle = color; g.fillRect(0, 0, 256, 256);
@@ -188,7 +188,7 @@ function weaveCanvas(color) {
   return cv;
 }
 
-function radialCanvas(inner, outer) {
+export function radialCanvas(inner, outer) {
   const cv = makeCanvas(256);
   const g = cv.getContext('2d');
   const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
@@ -197,7 +197,7 @@ function radialCanvas(inner, outer) {
   return cv;
 }
 
-const MANNEQUIN_COLORS = { linen: '#e6d8c3', black: '#262322', white: '#f2efea' };
+export const MANNEQUIN_COLORS = { linen: '#e6d8c3', black: '#262322', white: '#f2efea' };
 
 // ---------- Asosiy sahna ----------
 export function createMannequin(container, opts = {}) {

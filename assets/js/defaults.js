@@ -186,9 +186,9 @@ export const DEFAULT_SETTINGS = {
   "mode": "3d",
   "image_url": "",
   "word": {
-   "uz": "USLUB",
-   "ru": "СТИЛЬ",
-   "en": "STYLE"
+   "uz": "SHAYDO",
+   "ru": "SHAYDO",
+   "en": "SHAYDO"
   },
   "eyebrow": {
    "uz": "Tikuvchi-dizayner",

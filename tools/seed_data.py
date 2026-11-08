@@ -47,7 +47,7 @@ SETTINGS = {
     "hero": {
         "mode": "3d",
         "image_url": "",
-        "word": L("USLUB", "СТИЛЬ", "STYLE"),
+        "word": L("SHAYDO", "SHAYDO", "SHAYDO"),
         "eyebrow": L("Tikuvchi-dizayner", "Дизайнер одежды", "Fashion designer"),
         "side_text": L("Libos — so‘zsiz aytilgan hikoya", "Одежда — история без слов", "Clothing is a story told without words"),
     },
