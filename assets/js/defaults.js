@@ -368,6 +368,10 @@ export const DEFAULT_SETTINGS = {
   "mannequin": "linen",
   "finial": "silver",
   "sparkle": false,
-  "motion": true
+  "motion": true,
+  "source": "procedural",
+  "photo_front": "",
+  "photo_back": "",
+  "project_id": ""
  }
 };

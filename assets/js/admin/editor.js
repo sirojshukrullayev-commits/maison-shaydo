@@ -127,7 +127,7 @@ function drawFallbackMannequin(ctx, W, H, color) {
   ctx.restore();
 }
 
-export async function openEditor(src, { title = 'Rasm', defaultMode = 'nobg' } = {}) {
+export async function openEditor(src, { title = 'Rasm', defaultMode = 'nobg', transparent = false } = {}) {
   let srcBlob = null; let img;
   try {
     if (src instanceof Blob) { srcBlob = src; img = await loadImage(URL.createObjectURL(src)); }
@@ -140,8 +140,9 @@ export async function openEditor(src, { title = 'Rasm', defaultMode = 'nobg' } =
   const tokens = getTokens();
   const st = {
     mode: defaultMode, cutout: null, changed: false,
-    bg: { type: 'color', c1: '#ffffff', c2: tokens.colors.surface || '#f2ece4', grad: false },
-    shadow: true, tol: 40,
+    // transparent: fotodan 3D uchun — fon shaffof, soya qo'shilmaydi
+    bg: { type: transparent ? 'transparent' : 'color', c1: '#ffffff', c2: tokens.colors.surface || '#f2ece4', grad: false },
+    shadow: !transparent, tol: 40,
     man: { color: tokens.mannequin || 'linen', rot: 0, img: null, inst: null, holder: null, failed: false },
     g: { x: 0.5, top: 0.165, s: 0.44, r: 0 },
   };
@@ -192,7 +193,7 @@ export async function openEditor(src, { title = 'Rasm', defaultMode = 'nobg' } =
               <label class="sw sw--pick" title="Istalgan rang">${icon('palette')}<input type="color" data-k="c1" value="#ffffff"></label></div>
             <label class="switch"><input type="checkbox" data-k="grad"><span class="switch-ui"></span><span class="switch-text">Gradient</span></label>
             <label class="ed-color2" hidden>Ikkinchi rang <input type="color" data-k="c2" value="${esc(st.bg.c2)}"></label>
-            <label class="switch"><input type="checkbox" data-k="shadow" checked><span class="switch-ui"></span><span class="switch-text">Yumshoq soya</span></label>
+            <label class="switch"><input type="checkbox" data-k="shadow" ${transparent ? '' : 'checked'}><span class="switch-ui"></span><span class="switch-text">Yumshoq soya</span></label>
           </div>
         </div>
         <div class="ed-foot"><button type="button" class="abtn abtn--ghost" data-act="close">Bekor qilish</button><button type="button" class="abtn" data-act="save">${icon('check')}Saqlash</button></div>
@@ -432,7 +433,7 @@ export async function openEditor(src, { title = 'Rasm', defaultMode = 'nobg' } =
     window.addEventListener('resize', render);
 
     $$(`.ed-seg [data-v="${st.man.color}"]`).forEach((x) => x.classList.add('is-active'));
-    $$('.sw')[1]?.classList.add('is-active');
+    $$('.sw')[transparent ? 0 : 1]?.classList.add('is-active');
     setMode(st.mode);
   });
 }

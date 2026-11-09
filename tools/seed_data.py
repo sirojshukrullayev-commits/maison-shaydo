@@ -101,7 +101,8 @@ SETTINGS = {
     # Bosh sahifadagi 3D ko'ylak (assets/js/gown-config.js dagi GOWN_DEFAULTS bilan bir xil)
     "gown": {"silhouette": "aline", "neckline": "illusion", "sleeves": "long", "fabric": "lace", "color": "#efe6d8",
              "lace": "#fffdf8", "trim": "none", "scallop": True, "spread": 100, "train": 40, "size": 25, "width": 45, "speed": 40, "mannequin": "linen",
-             "finial": "silver", "sparkle": False, "motion": True},
+             "finial": "silver", "sparkle": False, "motion": True,
+             "source": "procedural", "photo_front": "", "photo_back": "", "project_id": ""},
 }
 
 CATEGORIES = [

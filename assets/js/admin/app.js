@@ -474,6 +474,9 @@ async function viewProjectEdit(id) {
     { type: 'group', label: 'Mato' },
     { key: 'fabric', label: 'Mato turi', type: 'i18n', placeholder: 'Masalan: Atlas (ipak)' },
     { key: 'fabric_image_url', label: 'Mato rasmi (ixtiyoriy) — 3D ko‘rinishda libosga “kiydiriladi”', type: 'image', folder: 'fabrics', editorMode: 'original' },
+    { type: 'group', label: '3D ko‘rinish — haqiqiy ko‘ylak surati' },
+    { key: 'model_front', label: 'Ko‘ylakning oldidan surati', type: 'image', folder: 'models', editorMode: 'nobg', editorOnUpload: true, transparent: true, max: 1800, help: 'Ko‘ylakni manekenda, bir xil masofadan, butun bo‘yi bilan suratga oling (oddiy, bir xil rangli fon yaxshi). Yuklaganingizda fon avtomatik olib tashlanadi — “Saqlash”ni bosing. Shunda saytdagi “3D ko‘rish” aynan shu ko‘ylakni aylantirib ko‘rsatadi.' },
+    { key: 'model_back', label: 'Ko‘ylakning orqasidan surati (ixtiyoriy)', type: 'image', folder: 'models', editorMode: 'nobg', editorOnUpload: true, transparent: true, max: 1800, help: 'Bo‘lsa, ko‘ylak vaqti-vaqti bilan burilib orqasini ham ko‘rsatadi. Old surat bilan bir xil masofadan oling.' },
     { type: 'group', label: 'Ko‘rinish' },
     { key: 'is_published', label: 'Saytda ko‘rinsin', type: 'toggle', text: 'Ha' },
     { key: 'is_featured', label: 'Bosh sahifadagi “So‘nggi loyihalar”da ko‘rsatish', type: 'toggle', text: 'Ha' },
@@ -908,8 +911,15 @@ async function viewGown() {
   await loadSettings();
   const cur = normalizeGown(S.settings.gown);
   const opts = (k) => Object.entries(GOWN_OPTIONS[k]).map(([value, label]) => ({ value, label }));
+  // Haqiqiy ko'ylak surati yuklangan loyihalar
+  const withModel = (await q(S.sb.from('projects').select('id,title,model_front').order('sort_order', { ascending: true })).catch(() => [])).filter((x) => x.model_front);
   const fields = [
-    { type: 'group', label: 'Bichim' },
+    { type: 'group', label: 'Ko‘ylak manbasi' },
+    { key: 'source', label: 'Bosh sahifada nima ko‘rsatilsin', type: 'select', wide: true, options: opts('source'), help: 'Haqiqiy ko‘ylak eng real ko‘rinadi: suratdagi ko‘ylakning o‘zi chiqadi va yengil aylanib turadi.' },
+    { key: 'photo_front', label: 'Haqiqiy ko‘ylak — oldidan surati', type: 'image', folder: 'models', editorMode: 'nobg', editorOnUpload: true, transparent: true, max: 1800, help: '“Haqiqiy ko‘ylak rasmidan 3D” tanlanganda ishlatiladi. Ko‘ylakni manekenda, butun bo‘yi bilan suratga oling — fon avtomatik olib tashlanadi.' },
+    { key: 'photo_back', label: 'Haqiqiy ko‘ylak — orqasidan surati (ixtiyoriy)', type: 'image', folder: 'models', editorMode: 'nobg', editorOnUpload: true, transparent: true, max: 1800 },
+    { key: 'project_id', label: 'Loyiha', type: 'select', wide: true, options: [{ value: '', label: withModel.length ? '— Loyihani tanlang —' : '— Hali hech bir loyihaga ko‘ylak surati yuklanmagan —' }, ...withModel.map((x) => ({ value: x.id, label: tr(x.title) }))], help: '“Loyihadagi ko‘ylak rasmidan 3D” tanlanganda ishlatiladi. Suratlar loyiha sahifasidagi “3D ko‘rinish — haqiqiy ko‘ylak surati” bo‘limida yuklanadi.' },
+    { type: 'group', label: 'Bichim (chizilgan 3D ko‘ylak uchun)' },
     { key: 'silhouette', label: 'Siluet', type: 'select', options: opts('silhouette') },
     { key: 'neckline', label: 'Yoqa', type: 'select', options: opts('neckline') },
     { key: 'sleeves', label: 'Yenglar', type: 'select', options: opts('sleeves'), help: 'Yenglar “shaffof to‘rli” va “yopiq yoqa” turlarida ko‘rinadi' },

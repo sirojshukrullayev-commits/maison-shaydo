@@ -160,13 +160,13 @@ function imageField(f, v) {
     if (!fl) return;
     if (f.editorOnUpload && f.editor !== false) {
       const { openEditor } = await import('./editor.js');
-      const res = await openEditor(fl, { title: f.label, defaultMode: f.editorMode });
+      const res = await openEditor(fl, { title: f.label, defaultMode: f.editorMode, transparent: !!f.transparent });
       if (res) await doUpload(res.blob, 'edited.png');
     } else await doUpload(fl, fl.name);
   });
   btnEdit.addEventListener('click', async () => {
     const { openEditor } = await import('./editor.js');
-    const res = await openEditor(url, { title: f.label, defaultMode: f.editorMode });
+    const res = await openEditor(url, { title: f.label, defaultMode: f.editorMode, transparent: !!f.transparent });
     if (res) await doUpload(res.blob, 'edited.png');
   });
   btnDel.addEventListener('click', () => { url = ''; draw(); box.dispatchEvent(new Event('change', { bubbles: true })); });

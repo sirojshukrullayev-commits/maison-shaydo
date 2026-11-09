@@ -17,7 +17,7 @@ const VH = 0.72; // etak polga tekkan joy (v)
 const TILE = 1.0; // naqshning dunyo birligidagi o'lchami (4x4 gul)
 const HEM_FLARE = 0.06; // etak polga tegishda biroz ochiladi
 // Maneken: ozg'in va bo'yni uzun
-const SLIM = 0.78; // tana kengligi koeffitsienti (ozg'in)
+const SLIM = 0.68; // tana kengligi koeffitsienti (ozg'in)
 const NECK_Y = 0.63; // bo'yin shu balandlikdan boshlanadi
 const NECK_K = 2.0; // bo'yin necha barobar uzunroq
 const LIFT = (0.752 - NECK_Y) * (NECK_K - 1); // bosh qismi qancha ko'tariladi
@@ -30,10 +30,10 @@ const NB = 1600; // chet lentasining bo'laklari
 
 const SIL = {
   // A harfiga o'xshash: belidan etagigacha to'g'ri chiziq bo'ylab kengayadi
-  aline: { bell: 0, mermaid: 0, rAmul: 1, waist: 0.36, fold: 0.02 },
-  ball: { bell: 0.92, mermaid: 0, rAmul: 1.32, waist: 0.3, fold: 0.036 },
-  mermaid: { bell: 0, mermaid: 1, rAmul: 1.04, waist: 0.3, fold: 0.022 },
-  empire: { bell: 0.15, mermaid: 0, rAmul: 1.05, waist: 0.42, fold: 0.03 },
+  aline: { bell: 0, mermaid: 0, rAmul: 1, waist: 0.36, fold: 0.042 },
+  ball: { bell: 0.92, mermaid: 0, rAmul: 1.32, waist: 0.3, fold: 0.05 },
+  mermaid: { bell: 0, mermaid: 1, rAmul: 1.04, waist: 0.3, fold: 0.034 },
+  empire: { bell: 0.15, mermaid: 0, rAmul: 1.05, waist: 0.42, fold: 0.045 },
 };
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -235,8 +235,8 @@ export function createGown(container, opts = {}) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, o.quality === 'low' ? 1.6 : 1.8));
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMapping = o.toneMapping === 'agx' ? THREE.AgXToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = o.toneMapping === 'agx' ? 1.25 : 1.0;
   const cnv = renderer.domElement;
   cnv.className = 'mannequin-canvas gown-canvas';
   container.appendChild(cnv);
@@ -249,12 +249,23 @@ export function createGown(container, opts = {}) {
 
   const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 80);
   const hemi = new THREE.HemisphereLight(0xffffff, 0x2a2018, 0.5);
-  const key = new THREE.DirectionalLight(0xfff4e8, 2.3); key.position.set(2.2, 3.4, 4.2);
-  const fill = new THREE.DirectionalLight(0xf2ecff, 0.75); fill.position.set(-3, 1.2, 3.5);
+  const key = new THREE.DirectionalLight(0xfff4e8, 2.6); key.position.set(3.2, 3.2, 2.6);
+  const fill = new THREE.DirectionalLight(0xf2ecff, 0.55); fill.position.set(-3, 1.2, 3.5);
   const rimL = new THREE.DirectionalLight(0xffffff, 1.8); rimL.position.set(-3.5, 2.6, -2.5);
   const rimR = new THREE.DirectionalLight(0xffffff, 1.3); rimR.position.set(3.4, 1.8, -2.6);
   const top = new THREE.SpotLight(0xffffff, 18, 12, 0.5, 0.6, 1.6); top.position.set(0, 4.5, 1.5); top.target.position.set(0, -0.6, 0);
   scene.add(hemi, key, fill, rimL, rimR, top, top.target);
+  // Haqiqiy soyalar: burmalar ichida va polda (telefonda tejamkorlik uchun o'chiq)
+  const useShadows = o.shadows === true && o.quality !== 'low'; // ko'rinishga deyarli ta'sir qilmaydi, tezlik uchun o'chiq
+  let floorShadow = null;
+  if (useShadows) {
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 1.5, bottom: -1.5, near: 0.5, far: 12 });
+    key.shadow.bias = -0.0012; key.shadow.normalBias = 0.035;
+  }
 
   const root = new THREE.Group();
   scene.add(root);
@@ -275,7 +286,9 @@ export function createGown(container, opts = {}) {
   const weave = track(new THREE.CanvasTexture(weaveCanvas('#ffffff')));
   weave.wrapS = weave.wrapT = THREE.RepeatWrapping; weave.repeat.set(7, 5); weave.colorSpace = THREE.SRGBColorSpace;
   const bodyMat = track(new THREE.MeshStandardMaterial({ color: MANNEQUIN_COLORS.linen, map: weave, roughness: 0.86 }));
-  root.add(new THREE.Mesh(torsoGeo, bodyMat));
+  const torso = new THREE.Mesh(torsoGeo, bodyMat);
+  torso.castShadow = true; torso.receiveShadow = true;
+  root.add(torso);
   const metalMat = track(new THREE.MeshStandardMaterial({ color: '#d7d9dc', roughness: 0.18, metalness: 1 }));
   const capM = new THREE.Mesh(track(new THREE.CylinderGeometry(0.068, 0.062, 0.024, 48)), metalMat); capM.position.y = 0.762 + LIFT;
   const rod = new THREE.Mesh(track(new THREE.CylinderGeometry(0.009, 0.009, 0.06, 16)), metalMat); rod.position.y = 0.8 + LIFT;
@@ -314,6 +327,16 @@ export function createGown(container, opts = {}) {
 
   const dressGeo = makeGrid(NU, NV, true);
   const dress = new THREE.Mesh(dressGeo, dressMat);
+  // Dantel aplikatsiya qatlami (o'yilgan naqsh, ostidan atlas ko'rinadi)
+  const laceGeo = track(new THREE.BufferGeometry());
+  laceGeo.setIndex(dressGeo.index);
+  laceGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dressGeo.attributes.position.array.length), 3));
+  laceGeo.setAttribute('uv', dressGeo.attributes.uv);
+  laceGeo.setAttribute('color', dressGeo.attributes.color);
+  const laceMat = track(new THREE.MeshPhysicalMaterial({ side: THREE.DoubleSide, vertexColors: true, alphaTest: 0.42, roughness: 0.72, sheen: 1, sheenRoughness: 0.55 }));
+  const laceMesh = new THREE.Mesh(laceGeo, laceMat);
+  laceMesh.frustumCulled = false; laceMesh.visible = false;
+  root.add(laceMesh);
   const NI = 14;
   const illGeo = makeGrid(NU, NI);
   const illusion = new THREE.Mesh(illGeo, sheerMat);
@@ -338,6 +361,7 @@ export function createGown(container, opts = {}) {
   border.renderOrder = 1;
   [dress, illusion, topBand, shBand, belt, border, ...sleeves].forEach((m) => { m.frustumCulled = false; root.add(m); });
   illusion.renderOrder = 2; sleeves.forEach((s) => { s.renderOrder = 3; });
+  dress.castShadow = true; dress.receiveShadow = true; laceMesh.receiveShadow = true;
 
   // Uchqunlar
   const NP = 90;
@@ -373,7 +397,9 @@ export function createGown(container, opts = {}) {
   }
   function foldPattern(th, s) {
     if (C.fabric === 'pleated') return Math.abs(Math.sin(th * 34)) * 2 - 1;
-    return 0.52 * Math.sin(th * 7 + phase[0] + s * 0.8) + 0.3 * Math.sin(th * 12 + phase[1] - s * 1.1) + 0.18 * Math.sin(th * 21 + phase[2]);
+    // Real matodagidek: yirik yumshoq burmalar + mayda to'lqinlar, pastga tomon biroz buraladi
+    return 0.5 * Math.sin(th * 7 + phase[0] + s * 0.9) + 0.3 * Math.sin(th * 11 + phase[1] - s * 1.3)
+      + 0.14 * Math.sin(th * 17 + phase[2] + s * 0.5) + 0.06 * Math.sin(th * 29 + phase[3] - s * 2.1);
   }
 
   // Asosiy yuza: th — aylana burchagi, v — yoqadan etak chetigacha
@@ -446,8 +472,8 @@ export function createGown(container, opts = {}) {
         const k = (j * (NU + 1) + i) * 3;
         p[k] = q.x; p[k + 1] = q.y; p[k + 2] = q.z;
         // Burmalardagi soya (ambient occlusion)
-        const shade = 1 - 0.16 * Math.max(0, -q.f) + 0.04 * Math.max(0, q.f) - (v > VH ? 0.03 : 0);
-        col[k] = col[k + 1] = col[k + 2] = Math.max(0.6, Math.min(1.08, shade));
+        const shade = 1 - 0.24 * Math.max(0, -q.f) + 0.05 * Math.max(0, q.f) - (v > VH ? 0.03 : 0);
+        col[k] = col[k + 1] = col[k + 2] = Math.max(0.55, Math.min(1.08, shade));
       }
     }
     // Naqsh cho'zilmasligi uchun UV ikki yo'nalishda ham haqiqiy yoy uzunligi bo'yicha (chok orqada)
@@ -488,6 +514,21 @@ export function createGown(container, opts = {}) {
     dressGeo.attributes.uv.needsUpdate = true;
     dressGeo.attributes.color.needsUpdate = true;
     dressGeo.computeVertexNormals();
+    if (laceMesh.visible) updateLace();
+  }
+
+  // Dantel qatlami asosiy matodan biroz tashqarida turadi — naqsh orasidan atlas ko'rinadi
+  function updateLace() {
+    if (laceGeo.attributes.normal !== dressGeo.attributes.normal) laceGeo.setAttribute('normal', dressGeo.attributes.normal);
+    const p = dressGeo.attributes.position.array; const n = dressGeo.attributes.normal.array;
+    const lp = laceGeo.attributes.position.array;
+    const kc = ((NV >> 1) * (NU + 1) + (NU >> 1)) * 3;
+    const sign = (p[kc] * n[kc] + p[kc + 2] * n[kc + 2]) >= 0 ? 1 : -1;
+    const off = 0.0045 * sign;
+    for (let k = 0; k < lp.length; k += 3) {
+      lp[k] = p[k] + n[k] * off; lp[k + 1] = p[k + 1] + n[k + 1] * off; lp[k + 2] = p[k + 2] + n[k + 2] * off;
+    }
+    laceGeo.attributes.position.needsUpdate = true;
   }
 
   const NS = 2400;
@@ -605,16 +646,34 @@ export function createGown(container, opts = {}) {
       return t;
     };
     const m = FABRIC_MAT[C.fabric];
-    const colorTex = mk(fabricColorCanvas(C.fabric, C.color, C.lace));
-    if (C.fabric !== 'lace') colorTex.repeat.set(C.fabric === 'atlas' ? 0.6 : 0.8, 0.8);
-    dressMat.map = colorTex;
-    dressMat.bumpMap = m.bump ? mk(laceBumpCanvas(), false) : null;
-    dressMat.bumpScale = m.bump || 1;
-    dressMat.roughness = m.roughness; dressMat.metalness = m.metalness;
-    dressMat.sheen = m.sheen; dressMat.sheenRoughness = m.sheenRoughness;
-    dressMat.sheenColor = new THREE.Color(C.fabric === 'velvet' ? hex(C.color, 0.45) : '#ffffff');
-    dressMat.clearcoat = m.clearcoat;
-    if ('anisotropy' in dressMat) dressMat.anisotropy = m.anisotropy;
+    const isLace = C.fabric === 'lace';
+    if (isLace) {
+      // Ostki qatlam — silliq atlas; ustida alohida o'yilgan dantel
+      dressMat.map = null; dressMat.bumpMap = null;
+      dressMat.color.set(C.color);
+      dressMat.roughness = 0.4; dressMat.metalness = 0;
+      dressMat.sheen = 0.7; dressMat.sheenRoughness = 0.35; dressMat.sheenColor = new THREE.Color('#ffffff');
+      dressMat.clearcoat = 0.08;
+      if ('anisotropy' in dressMat) dressMat.anisotropy = 0.3;
+      laceMat.map = mk(laceColorCanvas(C.lace, C.lace));
+      laceMat.alphaMap = mk(laceMaskCanvas(0), false);
+      laceMat.bumpMap = mk(laceBumpCanvas(), false); laceMat.bumpScale = 1.6;
+      laceMat.sheenColor = new THREE.Color('#ffffff');
+      laceMat.needsUpdate = true;
+    } else {
+      const colorTex = mk(fabricColorCanvas(C.fabric, C.color, C.lace));
+      colorTex.repeat.set(C.fabric === 'atlas' ? 0.6 : 0.8, 0.8);
+      dressMat.color.set('#ffffff');
+      dressMat.map = colorTex;
+      dressMat.bumpMap = m.bump ? mk(laceBumpCanvas(), false) : null;
+      dressMat.bumpScale = m.bump || 1;
+      dressMat.roughness = m.roughness; dressMat.metalness = m.metalness;
+      dressMat.sheen = m.sheen; dressMat.sheenRoughness = m.sheenRoughness;
+      dressMat.sheenColor = new THREE.Color(C.fabric === 'velvet' ? hex(C.color, 0.45) : '#ffffff');
+      dressMat.clearcoat = m.clearcoat;
+      if ('anisotropy' in dressMat) dressMat.anisotropy = m.anisotropy;
+    }
+    laceMesh.visible = isLace;
     dressMat.needsUpdate = true;
     // Shaffof to'r va dantel qismlar (yenglar, yoqa)
     const laceCol = mk(laceColorCanvas(hex(C.lace, -0.04), C.lace));
@@ -864,6 +923,7 @@ export function createGown(container, opts = {}) {
       document.documentElement.classList.remove('cursor-spin');
       texs.forEach((t) => t.dispose());
       disposables.forEach((d) => d.dispose && d.dispose());
+      if (floorShadow) { floorShadow.geometry.dispose(); floorShadow.material.dispose(); }
       envRT.dispose(); pmrem.dispose(); renderer.dispose();
       cnv.remove();
       container.classList.remove('has-3d', 'is-gown');

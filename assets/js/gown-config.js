@@ -17,6 +17,11 @@ export const GOWN_DEFAULTS = {
   finial: 'silver',
   sparkle: false,
   motion: true,
+  // Ko'ylak manbasi: chizilgan 3D, yuklangan haqiqiy rasm yoki loyihadagi rasm
+  source: 'procedural',
+  photo_front: '',
+  photo_back: '',
+  project_id: '',
 };
 
 export const GOWN_OPTIONS = {
@@ -27,6 +32,7 @@ export const GOWN_OPTIONS = {
   trim: { none: 'Yo‘q', gold: 'Zarrin', silver: 'Kumush' },
   mannequin: { linen: 'Zig‘ir rang', white: 'Oq', black: 'Qora' },
   finial: { silver: 'Kumush', gold: 'Oltin', wood: 'Yog‘och' },
+  source: { procedural: 'Chizilgan 3D ko‘ylak (pastdagi sozlamalar)', photo: 'Haqiqiy ko‘ylak rasmidan 3D', project: 'Loyihadagi ko‘ylak rasmidan 3D' },
 };
 
 export function normalizeGown(c) {
@@ -42,5 +48,8 @@ export function normalizeGown(c) {
   o.width = pct(o.width, GOWN_DEFAULTS.width);
   o.speed = pct(o.speed, GOWN_DEFAULTS.speed);
   o.scallop = !!o.scallop; o.sparkle = !!o.sparkle; o.motion = o.motion !== false;
+  const url = (v) => (typeof v === 'string' && /^(https:\/\/|\/)/.test(v.trim()) ? v.trim() : '');
+  o.photo_front = url(o.photo_front); o.photo_back = url(o.photo_back);
+  o.project_id = typeof o.project_id === 'string' ? o.project_id : '';
   return o;
 }

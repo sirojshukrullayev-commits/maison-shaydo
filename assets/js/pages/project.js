@@ -18,6 +18,7 @@ function notFound(main) {
 }
 
 function open3d(project) {
+  const front = safeUrl(project.model_front);
   const modal = document.createElement('div');
   modal.className = 'modal';
   modal.setAttribute('role', 'dialog');
@@ -25,7 +26,9 @@ function open3d(project) {
   modal.innerHTML = `<div class="modal-box">
       <button class="modal-close" type="button" aria-label="${esc(t('close'))}">${icon('close')}</button>
       <div class="modal-3d-stage"></div>
-      <div class="modal-3d-cap"><h3>${esc(t('fabric_3d_title'))}</h3><p>${esc(tr(project.fabric))} — ${esc(t('fabric_3d_text'))}</p></div>
+      <div class="modal-3d-cap">${front
+    ? `<h3>${esc(t('model_3d_title'))}</h3><p>${esc(tr(project.title))} — ${esc(t('model_3d_text'))}</p>`
+    : `<h3>${esc(t('fabric_3d_title'))}</h3><p>${esc(tr(project.fabric))} — ${esc(t('fabric_3d_text'))}</p>`}</div>
     </div>`;
   document.body.appendChild(modal);
   document.documentElement.classList.add('modal-open');
@@ -42,7 +45,7 @@ function open3d(project) {
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   modal.querySelector('.modal-close').addEventListener('click', close);
   const stage = modal.querySelector('.modal-3d-stage');
-  import('../three/mannequin.js').then((mod) => {
+  const showMannequin = () => import('../three/mannequin.js').then((mod) => {
     if (!mod.webglAvailable()) throw new Error('webgl');
     inst = mod.createMannequin(stage, {
       tokens: getTokens(), fit: 0.88, particles: true, autoRotate: true, parallax: false,
@@ -51,6 +54,15 @@ function open3d(project) {
   }).catch(() => {
     stage.innerHTML = `<div class="modal-msg"><p>${esc(t('no_3d'))}</p></div>`;
   });
+  if (!front) { showMannequin(); return; }
+  // Haqiqiy ko'ylak suratidan 3D
+  import('../three/photodress.js').then((mod) => {
+    if (!mod.webglAvailable()) throw new Error('webgl');
+    inst = mod.createPhotoDress(stage, {
+      mode: 'fit', animate: true, front, back: safeUrl(project.model_back) || '', config: { motion: true, speed: 40 },
+    });
+    inst.loaded.catch(() => { if (inst) inst.dispose(); inst = null; showMannequin(); });
+  }).catch(() => showMannequin());
 }
 
 async function render({ first }) {

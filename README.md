@@ -25,6 +25,7 @@ Tikuvchi-dizayner loyihalari, u haqidagi ma'lumotlar, ilmiy ishlar va yutuqlarni
 - Rasm muharriri: asl rasm, fonni olib tashlash (AI yoki oddiy usul), istalgan fon rangi yoki gradient, kiyimni 3D manekenga joylash.
 - Dizayn va mavzular: 5 ta tayyor mavzu (Zamonaviy, Milliy, Klassik, Minimal, Pastel), har birining ranglari, shriftlari, naqshi va 3D libosini o'zgartirish, yangi mavzu yaratish, jonli ko'rinish.
 - 3D ko'ylak: siluet, yoqa, yenglar, mato, ranglar, bel bezagi, dantel chetlari, bo'yi, etak kengligi, aylanish va tezligi; 5 ta tayyor uslub va jonli ko'rinish.
+- Haqiqiy ko'ylak suratidan 3D: ko'ylakning oldidan (va xohlasa orqasidan) surati yuklanadi, fon avtomatik olib tashlanadi; bosh sahifada yoki loyiha sahifasidagi "3D ko'rish" oynasida aynan shu ko'ylak yengil burilib ko'rinadi.
 - Animatsiya, 3D va kursor effektlarini yoqish/o'chirish.
 
 **Admin panelga kirish:** login `maisonshaydo` va parol. Parolni "Sozlamalar" bo'limidan almashtirish mumkin.
@@ -41,7 +42,8 @@ assets/js/theme.js           mavzu tizimi (ranglar, shriftlar, naqshlar)
 assets/js/layout.js          header, footer, til tanlagich, preloader
 assets/js/anim.js            animatsiyalar
 assets/js/three/mannequin.js 3D maneken va libos (loyiha sahifasi)
-assets/js/three/gown.js      bosh sahifadagi 3D ko'ylak
+assets/js/three/gown.js      bosh sahifadagi 3D ko'ylak (chizilgan)
+assets/js/three/photodress.js haqiqiy ko'ylak suratidan 3D
 assets/js/gown-config.js     3D ko'ylak sozlamalari (standart qiymatlar)
 assets/js/pages/*.js         har bir sahifa skripti
 assets/js/admin/*.js         admin panel, forma quruvchi, rasm muharriri

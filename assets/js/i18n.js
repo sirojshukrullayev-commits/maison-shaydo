@@ -35,6 +35,7 @@ const DICT = {
     research_latest: 'So‘nggi ilmiy ishlar', open_project: 'Ochish', fabric_3d_title: 'Mato 3D ko‘rinishda',
     fabric_3d_text: 'Loyiha matosi maneken ustida. Sichqoncha yoki barmoq bilan aylantiring.',
     no_3d: 'Brauzeringiz 3D ko‘rinishni qo‘llab-quvvatlamaydi.', items: 'ta',
+    model_3d_title: 'Ko‘ylak 3D ko‘rinishda', model_3d_text: 'Haqiqiy ko‘ylak suratidan yasalgan. Sichqoncha yoki barmoq bilan aylantiring.',
     filter: 'Saralash', reset: 'Tozalash', copy_link: 'Havolani nusxalash', zoom: 'Kattalashtirish',
   },
   ru: {
@@ -66,6 +67,7 @@ const DICT = {
     research_latest: 'Последние научные работы', open_project: 'Открыть', fabric_3d_title: 'Ткань в 3D',
     fabric_3d_text: 'Ткань проекта на манекене. Вращайте мышью или пальцем.',
     no_3d: 'Ваш браузер не поддерживает 3D-просмотр.', items: 'шт.',
+    model_3d_title: 'Платье в 3D', model_3d_text: 'Создано по фотографии настоящего платья. Вращайте мышью или пальцем.',
     filter: 'Фильтр', reset: 'Сбросить', copy_link: 'Скопировать ссылку', zoom: 'Увеличить',
   },
   en: {
@@ -97,6 +99,7 @@ const DICT = {
     research_latest: 'Latest research', open_project: 'Open', fabric_3d_title: 'Fabric in 3D',
     fabric_3d_text: 'The project fabric on a mannequin. Drag with mouse or finger to rotate.',
     no_3d: 'Your browser does not support 3D view.', items: 'items',
+    model_3d_title: 'The dress in 3D', model_3d_text: 'Built from a photo of the real dress. Drag with mouse or finger to turn it.',
     filter: 'Filter', reset: 'Reset', copy_link: 'Copy link', zoom: 'Zoom',
   },
 };

@@ -120,6 +120,51 @@ function syncGown() {
 let syncTimer = 0;
 function scheduleSync(ms = 120) { clearTimeout(syncTimer); syncTimer = setTimeout(syncGown, ms); }
 
+// Ko'ylak manbasi: haqiqiy rasm (admin yuklagan yoki loyihadagi) yoki chizilgan 3D
+let projectsCache = [];
+function photoSpec(cfg) {
+  if (cfg.source === 'photo' && cfg.photo_front) return { front: cfg.photo_front, back: cfg.photo_back || '' };
+  if (cfg.source === 'project' && cfg.project_id) {
+    const p = projectsCache.find((x) => x.id === cfg.project_id);
+    if (p && safeUrl(p.model_front)) return { front: safeUrl(p.model_front), back: safeUrl(p.model_back) || '' };
+  }
+  return null;
+}
+const specKey = (cfg) => { const sp = photoSpec(cfg); return sp ? `photo|${sp.front}|${sp.back}` : 'procedural'; };
+
+async function createProcedural(fig, cfg) {
+  const mod = await import('../three/gown.js');
+  if (!mod.webglAvailable()) throw new Error('webgl');
+  const eng = mod.createGown(fig, {
+    tokens: getTokens(), animate: animationsEnabled(), quality: window.innerWidth < 700 ? 'low' : 'high', config: cfg,
+  });
+  eng.spec = 'procedural';
+  return eng;
+}
+
+async function createEngine(fig, cfg) {
+  const sp = photoSpec(cfg);
+  if (sp) {
+    try {
+      const mod = await import('../three/photodress.js');
+      if (!mod.webglAvailable()) throw new Error('webgl');
+      const eng = mod.createPhotoDress(fig, { animate: animationsEnabled(), quality: window.innerWidth < 700 ? 'low' : 'high', config: cfg, front: sp.front, back: sp.back, mode: 'slot' });
+      eng.spec = specKey(cfg);
+      // Rasm ochilmasa — chizilgan 3D ko'ylakka qaytiladi
+      eng.loaded.catch(async (err) => {
+        console.warn('Ko‘ylak rasmi ochilmadi:', err && err.message);
+        if (gown !== eng) return;
+        const proc = await createProcedural(fig, cfg).catch(() => null);
+        if (gown !== eng) { if (proc) proc.dispose(); return; }
+        eng.dispose(); gown = proc;
+        scheduleSync(0);
+      });
+      return eng;
+    } catch (e) { /* chizilgan ko'ylakka o'tiladi */ }
+  }
+  return createProcedural(fig, cfg);
+}
+
 async function setupFigure(site) {
   const fig = document.getElementById('hero-figure');
   const hero = site.settings.hero || {};
@@ -144,16 +189,20 @@ async function setupFigure(site) {
   if (app.three_d === false) { fallback(); return; }
   figureMode = '3d';
   try {
-    const mod = await import('../three/gown.js');
-    if (!mod.webglAvailable()) throw new Error('webgl');
-    const tk = getTokens();
-    gown = mod.createGown(fig, {
-      tokens: tk, animate: animationsEnabled(), quality: window.innerWidth < 700 ? 'low' : 'high', config: normalizeGown(site.settings.gown),
-    });
-    // Admin paneldagi "3D ko'ylak" bo'limidan jonli ko'rinish
-    window.addEventListener('message', (e) => {
+    gown = await createEngine(fig, normalizeGown(site.settings.gown));
+    // Admin paneldagi "3D ko'ylak" bo'limidan jonli ko'rinish (manba o'zgarsa dvigatel almashtiriladi)
+    let switching = 0;
+    window.addEventListener('message', async (e) => {
       if (e.origin !== location.origin || !e.data || e.data.type !== 'ms-gown-preview' || !gown) return;
-      gown.setConfig(e.data.config);
+      const cfg = normalizeGown(e.data.config);
+      if (gown.spec === specKey(cfg)) { gown.setConfig(cfg); return; }
+      const my = ++switching;
+      const next = await createEngine(fig, cfg).catch(() => null);
+      if (!next) return;
+      if (my !== switching) { next.dispose(); return; }
+      const old = gown; gown = next; old.dispose();
+      if (/[?&]debug3d\b/.test(location.search)) window.__gown = gown;
+      scheduleSync(0);
     });
     if (/[?&]debug3d\b/.test(location.search)) window.__gown = gown;
     fig.classList.add('is-in');
@@ -276,6 +325,7 @@ async function render({ site, first }) {
     listCategories().catch(() => []), listProjects().catch(() => []),
     listResearch().catch(() => []), listAchievements().catch(() => []),
   ]);
+  projectsCache = projects;
   if (first) {
     main.innerHTML = `<div class="hero-wrap"><section class="hero" id="hero" aria-label="${esc(tr(s.hero.eyebrow))}">
         <div class="hero-light"></div><div class="hero-pattern"></div><div class="hero-grain"></div>
