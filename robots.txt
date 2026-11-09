@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin
 
-Sitemap: https://maison-shaydo.vercel.app/sitemap.xml
+Sitemap: https://maisonshaydo.uz/sitemap.xml
